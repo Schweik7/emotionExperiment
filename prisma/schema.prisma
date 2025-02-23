@@ -1,0 +1,46 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Participant {
+  id        Int      @id @default(autoincrement())
+  name      String   // 添加姓名字段
+  createdAt DateTime @default(now())
+  
+  // 实验数据
+  videoResponses VideoResponse[]
+}
+
+model VideoResponse {
+  id            Int      @id @default(autoincrement())
+  participantId Int
+  participant   Participant @relation(fields: [participantId], references: [id])
+  
+  // 情绪评分
+  excitedIntensity    Float
+  excitedFrequency    Float
+  alertIntensity      Float
+  alertFrequency      Float
+  tenseIntensity      Float
+  tenseFrequency      Float
+  anxiousIntensity    Float
+  anxiousFrequency    Float
+  terrifiedIntensity  Float
+  terrifiedFrequency  Float
+  desperateIntensity  Float
+  desperateFrequency  Float
+  
+  // 不适感评分
+  physicalDiscomfort  Float
+  psychologicalDiscomfort Float
+
+  createdAt DateTime @default(now())
+}

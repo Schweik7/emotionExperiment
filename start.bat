@@ -1,0 +1,9 @@
+@echo off
+echo Installing dependencies...
+pnpm install
+
+echo Running database migrations...
+pnpm migrate
+
+echo Starting development servers...
+pnpm dev
