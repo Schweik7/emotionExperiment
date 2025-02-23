@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import  { useState, useEffect } from 'react';
 import { Button } from "./button";
 import { Play, Pause, ArrowRight } from 'lucide-react';
 

@@ -1,3 +1,4 @@
+// src/services/api.ts
 import axios from 'axios';
 
 const api = axios.create({
@@ -22,13 +23,11 @@ export interface ParticipantResponse {
 }
 
 export const experimentApi = {
-  // 创建新参与者
   createParticipant: async (name: string) => {
     const response = await api.post('/participants', { name });
     return response.data;
   },
 
-  // 提交实验响应
   submitResponse: async (participantId: number, data: ParticipantResponse) => {
     const response = await api.post('/responses', {
       participantId,
