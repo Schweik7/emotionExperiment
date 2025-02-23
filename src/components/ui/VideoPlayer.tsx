@@ -1,33 +1,78 @@
-import  { useState, useEffect } from 'react';
-import { Button } from "./button";
-import { Play, Pause, ArrowRight } from 'lucide-react';
+// src/components/ui/VideoPlayer.tsx
+import { useState, useEffect, useRef } from 'react';
+import { Button } from "@/components/ui/button";
+import { Play, Pause, ArrowRight, SkipForward } from 'lucide-react';
+
+const skipVideo = true;
 
 interface VideoPlayerProps {
+  videoUrl: string;
+  onComplete: () => void;
   isHealing?: boolean;
-  onComplete?: () => void;
 }
 
-export function VideoPlayer({ isHealing = false, onComplete }: VideoPlayerProps) {
+export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const progressTimer = useRef<NodeJS.Timeout>();
 
+  // 处理视频播放和暂停
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (isPlaying && progress < 100) {
-      timer = setInterval(() => {
-        setProgress(prev => {
-          const newProgress = prev + 2;
-          if (newProgress >= 100) {
-            clearInterval(timer);
-            setIsPlaying(false);
-            if (onComplete) onComplete();
-          }
-          return Math.min(newProgress, 100);
-        });
-      }, 40); // 2秒完成
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isPlaying) {
+      video.play().catch(error => {
+        console.error('视频播放失败:', error);
+        setIsPlaying(false);
+      });
+    } else {
+      video.pause();
     }
-    return () => clearInterval(timer);
-  }, [isPlaying, progress, onComplete]);
+  }, [isPlaying]);
+
+  // 处理进度更新
+  useEffect(() => {
+    if (!isPlaying || progress >= 100) return;
+
+    progressTimer.current = setInterval(() => {
+      setProgress(prev => {
+        const newProgress = prev + 2;
+        if (newProgress >= 100) {
+          clearInterval(progressTimer.current);
+          setIsPlaying(false);
+          return 100;
+        }
+        return newProgress;
+      });
+    }, 40);
+
+    return () => {
+      if (progressTimer.current) {
+        clearInterval(progressTimer.current);
+      }
+    };
+  }, [isPlaying, progress]);
+
+  // 监听进度到达100%
+  useEffect(() => {
+    if (progress >= 100) {
+      setIsPlaying(false);
+      const timer = setTimeout(() => {
+        onComplete();
+      }, 3000); // 给用户一秒钟看完成状态
+      return () => clearTimeout(timer);
+    }
+  }, [progress, onComplete]);
+
+  const handlePlayClick = () => {
+    setIsPlaying(true);
+  };
+
+  const handlePauseClick = () => {
+    setIsPlaying(false);
+  };
 
   return (
     <div className="relative bg-black w-full aspect-video rounded-lg overflow-hidden">
@@ -37,16 +82,19 @@ export function VideoPlayer({ isHealing = false, onComplete }: VideoPlayerProps)
         </span>
       </div>
 
-      <div className="absolute inset-0 flex items-center justify-center">
-        <p className="text-white text-lg">
-          {isHealing ? '正念放松视频内容' : '实验视频内容'}
-        </p>
-      </div>
+      {/* 实际视频元素 */}
+      <video
+        ref={videoRef}
+        className="w-full h-full object-contain"
+        src={videoUrl}
+        playsInline
+        onEnded={() => setProgress(100)}
+      />
 
       {!isPlaying && progress < 100 && (
         <button
           className="absolute inset-0 w-full h-full flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors"
-          onClick={() => setIsPlaying(true)}
+          onClick={handlePlayClick}
         >
           <div className="w-20 h-20 flex items-center justify-center rounded-full bg-white/30 hover:bg-white/40 transition-colors">
             <Play className="h-10 w-10 text-white" />
@@ -60,9 +108,23 @@ export function VideoPlayer({ isHealing = false, onComplete }: VideoPlayerProps)
             variant="ghost"
             size="icon"
             className="bg-black/50 hover:bg-black/70 text-white rounded-full w-12 h-12"
-            onClick={() => setIsPlaying(false)}
+            onClick={handlePauseClick}
           >
             <Pause className="h-6 w-6" />
+          </Button>
+        </div>
+      )}
+
+      {/* 开发环境的跳过按钮 */}
+      {import.meta.env.DEV && skipVideo && progress < 100 && (
+        <div className="absolute bottom-4 right-4">
+          <Button
+            variant="ghost"
+            className="bg-black/50 hover:bg-black/70 text-white"
+            onClick={() => setProgress(100)}
+          >
+            <SkipForward className="mr-2 h-4 w-4" />
+            跳过视频
           </Button>
         </div>
       )}

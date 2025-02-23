@@ -1,87 +1,95 @@
+// src/components/ExperimentFlow/WatchingPhase.tsx
 import { useEffect, useState } from 'react';
 import { VideoPlayer } from "../ui/VideoPlayer";
 import { Button } from "@/components/ui/button";
-import { ArrowRight } from 'lucide-react';
 
 interface WatchingPhaseProps {
+  participantId: number;
+  videoFileName: string;
   onComplete: () => void;
 }
 
-export function WatchingPhase({ onComplete }: WatchingPhaseProps) {
-  const [hasWatched, setHasWatched] = useState(false);
-  const [showInstructions, setShowInstructions] = useState(true);
+export function WatchingPhase({ participantId, videoFileName, onComplete }: WatchingPhaseProps) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // 用于调试
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const videoUrl = `${API_URL}/videos/${videoFileName}`;
+
   useEffect(() => {
-    console.log('WatchingPhase mounted');
-    return () => console.log('WatchingPhase unmounted');
-  }, []);
+    // 检查视频是否可访问
+    const checkVideo = async () => {
+      try {
+        const response = await fetch(videoUrl);
+        if (!response.ok) {
+          throw new Error('视频加载失败');
+        }
+        setIsLoading(false);
+      } catch (err) {
+        console.error('Error loading video:', err);
+        setError('视频加载失败，请刷新页面重试');
+      }
+    };
+
+    checkVideo();
+  }, [videoUrl]);
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center text-white">
+          <p className="mb-4">{error}</p>
+          <Button 
+            variant="outline" 
+            onClick={() => window.location.reload()}
+          >
+            重试
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="text-center text-white">
+          <p>加载中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="relative min-h-screen bg-black flex items-center justify-center p-6">
-      <div className="w-full max-w-4xl mx-auto"> {/* 调整最大宽度并居中 */}
-        <div className="relative aspect-video bg-gray-900 rounded-lg overflow-hidden">
+    <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="w-full max-w-5xl px-6">
+        <VideoPlayer
+          videoUrl={videoUrl}
+          onComplete={onComplete}
+          isHealing={false}
+        />
 
-          {/* 视频标题 */}
-          <div className="absolute top-4 left-4 z-10">
-            <div className="bg-black/50 px-4 py-2 rounded-full">
-              <span className="text-white text-sm">实验视频</span>
-            </div>
+        {/* 开发环境调试信息 */}
+        {/* {import.meta.env.DEV && (
+          <div className="mt-4 bg-white/10 p-4 rounded text-white text-sm">
+            <div>参与者ID: {participantId}</div>
+            <div>当前视频: {videoFileName}</div>
           </div>
+        )} */}
 
-          {/* 视频内容 */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-white text-center">
-              <p className="text-lg mb-2">实验视频内容</p>
-              <p className="text-sm text-gray-400">（此处将显示实际视频）</p>
-            </div>
-          </div>
-
-          {/* 播放按钮 */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Button 
-              variant="ghost" 
-              size="lg"
-              className="bg-white/10 hover:bg-white/20 text-white rounded-full w-20 h-20"
-              onClick={() => {
-                // 模拟2秒后视频播放完成
-                setTimeout(() => {
-                  setHasWatched(true);
-                  onComplete();
-                }, 2000);
-              }}
+        {/* 开发环境跳过按钮 */}
+        {/* {import.meta.env.DEV && (
+          <div className="mt-4 flex justify-end">
+            <Button
+              variant="ghost"
+              className="text-white hover:bg-white/10"
+              onClick={onComplete}
             >
-              <svg 
-                className="w-8 h-8" 
-                fill="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path d="M8 5v14l11-7z" />
-              </svg>
+              跳过视频
             </Button>
           </div>
-        </div>
-
-        {/* 调试信息 */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-4 p-4 bg-white/10 rounded text-white">
-            <p>调试信息：</p>
-            <p>hasWatched: {hasWatched.toString()}</p>
-            <p>showInstructions: {showInstructions.toString()}</p>
-          </div>
-        )}
+        )} */}
       </div>
-
-      {/* 开发环境跳过按钮 */}
-      {process.env.NODE_ENV === 'development' && (
-        <Button
-          className="absolute bottom-4 right-4 bg-white/10"
-          onClick={onComplete}
-        >
-          跳过视频
-          <ArrowRight className="ml-2" />
-        </Button>
-      )}
     </div>
   );
 }

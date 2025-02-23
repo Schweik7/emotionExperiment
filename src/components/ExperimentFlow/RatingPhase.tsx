@@ -1,15 +1,28 @@
+// src/components/ExperimentFlow/RatingPhase.tsx
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { VASScale } from "../ui/VASScale";
-import { VideoPlayer } from "../ui/VideoPlayer";
-import { RatingData } from "../../types/experiment";  // 导入 RatingData 类型
+
 interface RatingPhaseProps {
-  onComplete: (ratings: RatingData) => void;  // 修改类型定义
+  participantId: number;
+  videoFileName: string;
+  onComplete: (ratings: RatingData) => void;
 }
 
-export function RatingPhase({ onComplete }: RatingPhaseProps) {
-  const [ratings, setRatings] = useState({
+interface RatingData {
+  excited: { intensity: number; frequency: number };
+  alert: { intensity: number; frequency: number };
+  tense: { intensity: number; frequency: number };
+  anxious: { intensity: number; frequency: number };
+  terrified: { intensity: number; frequency: number };
+  desperate: { intensity: number; frequency: number };
+  physical: number;
+  psychological: number;
+}
+
+export function RatingPhase({ participantId, videoFileName, onComplete }: RatingPhaseProps) {
+  const [ratings, setRatings] = useState<RatingData>({
     excited: { intensity: 0, frequency: 0 },
     alert: { intensity: 0, frequency: 0 },
     tense: { intensity: 0, frequency: 0 },
@@ -20,6 +33,8 @@ export function RatingPhase({ onComplete }: RatingPhaseProps) {
     psychological: 0
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const emotions = {
     excited: '兴奋',
     alert: '警觉',
@@ -29,27 +44,39 @@ export function RatingPhase({ onComplete }: RatingPhaseProps) {
     desperate: '绝望'
   };
 
+  const handleSubmit = () => {
+    setIsSubmitting(true);
+    try {
+      onComplete(ratings);
+    } catch (error) {
+      console.error('提交评分失败:', error);
+      alert('提交评分失败，请重试');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto p-6">
-        <div className="w-4/5 mx-auto"> {/* 调整宽度 */}
+        <div className="w-4/5 mx-auto">
           <Card>
             <CardHeader>
               <CardTitle>情绪评分</CardTitle>
             </CardHeader>
             <CardContent>
               {/* 表头 */}
-              <div className="grid grid-cols-[100px_1fr_1fr] gap-6 mb-2 px-4">
-                <div className="font-medium text-gray-600 mx-auto">情绪类型</div>
-                <div className="font-medium text-gray-600 mx-auto">情绪强度</div>
-                <div className="font-medium text-gray-600 mx-auto">出现频次</div>
+              <div className="grid grid-cols-[200px_1fr_1fr] gap-6 mb-6 px-4">
+                <div className="font-medium text-gray-600">情绪类型</div>
+                <div className="font-medium text-gray-600">情绪强度</div>
+                <div className="font-medium text-gray-600">出现频次</div>
               </div>
 
               {/* 情绪评分行 */}
-              <div className="space-y-6 ">
+              <div className="space-y-6">
                 {Object.entries(emotions).map(([key, emotion]) => (
-                  <div key={key} className="grid grid-cols-[100px_1fr_1fr] gap-10 px-4 py-2 hover:bg-gray-50 ">
-                    <div className="font-medium flex items-center mx-auto">{emotion}</div>
+                  <div key={key} className="grid grid-cols-[200px_1fr_1fr] gap-6 px-4 py-2 hover:bg-gray-50">
+                    <div className="font-medium flex items-center">{emotion}</div>
                     <VASScale
                       value={ratings[key].intensity}
                       onChange={(value) => {
@@ -76,8 +103,8 @@ export function RatingPhase({ onComplete }: RatingPhaseProps) {
                 ))}
 
                 {/* 不适感评估行 */}
-                <div className="grid grid-cols-[100px_1fr_1fr] gap-10 px-4 py-2 border-t border-gray-200 mt-6 pt-6">
-                  <div className="font-medium flex items-center mx-auto">不适感评估</div>
+                <div className="grid grid-cols-[200px_1fr_1fr] gap-6 px-4 py-2 border-t border-gray-200 mt-6 pt-6">
+                  <div className="font-medium flex items-center">不适感评估</div>
                   <VASScale
                     value={ratings.physical}
                     onChange={(value) => {
@@ -103,14 +130,24 @@ export function RatingPhase({ onComplete }: RatingPhaseProps) {
               <div className="flex justify-center mt-8">
                 <Button
                   size="lg"
-                  onClick={() => onComplete(ratings)}
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
                   className="px-12"
                 >
-                  提交评分
+                  {isSubmitting ? '提交中...' : '提交评分'}
                 </Button>
               </div>
             </CardContent>
           </Card>
+
+          {/* 开发环境调试信息 */}
+          {/* {import.meta.env.DEV && (
+            <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+              <pre className="text-xs">
+                {JSON.stringify({ participantId, videoFileName, ratings }, null, 2)}
+              </pre>
+            </div>
+          )} */}
         </div>
       </div>
     </div>

@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useState,useEffect} from 'react';
 import { experimentApi } from './services/api';
 import { VASScale } from './components/ui/VASScale';
 import { ExperimentFlow } from './components/ExperimentFlow';
 function App() {
+  useEffect(() => {
+    document.title = '情绪实验';
+  }, []);
   const [participantId, setParticipantId] = useState<number | null>(null);
   const [ratings, setRatings] = useState({
     excited: { intensity: 0, frequency: 0 },

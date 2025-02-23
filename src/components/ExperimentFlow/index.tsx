@@ -1,7 +1,6 @@
-import { useState } from 'react';
-import { experimentApi } from '../../services/api';
+import { useState, useEffect } from 'react';
 import { IntroPhase } from './IntroPhase';
-import { WatchingPhase } from './WatchingPhase';  // 使用 WatchingPhase
+import { WatchingPhase } from './WatchingPhase';
 import { RatingPhase } from './RatingPhase';
 import { HealingPhase } from './HealingPhase';
 import { EndPhase } from './EndPhase';
@@ -10,15 +9,31 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,  // 添加 DialogDescription
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ErrorBoundary } from "react-error-boundary"; // 添加错误边界
-import { RatingData } from '../../types/experiment';
-// 错误回退组件
-function ErrorFallback({ error, resetErrorBoundary }) {
+import { ErrorBoundary } from "react-error-boundary";
+import process from 'process';
+
+// API URL
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
+type Phase = 'intro' | 'watching' | 'rating' | 'healing' | 'end';
+
+interface RatingData {
+  excited: { intensity: number; frequency: number };
+  alert: { intensity: number; frequency: number };
+  tense: { intensity: number; frequency: number };
+  anxious: { intensity: number; frequency: number };
+  terrified: { intensity: number; frequency: number };
+  desperate: { intensity: number; frequency: number };
+  physical: number;
+  psychological: number;
+}
+
+function ErrorFallback({ resetErrorBoundary }) {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center p-6 space-y-4">
@@ -36,6 +51,19 @@ export function ExperimentFlow() {
   const [showNameDialog, setShowNameDialog] = useState(false);
   const [participantName, setParticipantName] = useState('');
   const [nameError, setNameError] = useState('');
+  const [currentVideo, setCurrentVideo] = useState<string | null>(null);
+
+  // 开发环境调试面板
+  const [debugInfo, setDebugInfo] = useState({});
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      setDebugInfo({
+        phase,
+        participantId,
+        currentVideo,
+      });
+    }
+  }, [phase, participantId, currentVideo]);
 
   const handleStartExperiment = () => {
     setShowNameDialog(true);
@@ -48,8 +76,17 @@ export function ExperimentFlow() {
     }
 
     try {
-      const participant = await experimentApi.createParticipant(participantName);
-      setParticipantId(participant.id);
+      const response = await fetch(`${API_URL}/api/participants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: participantName }),
+      });
+
+      if (!response.ok) throw new Error('创建参与者失败');
+
+      const data = await response.json();
+      setParticipantId(data.participant.id);
+      setCurrentVideo(data.currentVideo);
       setShowNameDialog(false);
       setPhase('watching');
     } catch (error) {
@@ -57,35 +94,52 @@ export function ExperimentFlow() {
       setNameError('创建参与者失败，请重试');
     }
   };
+
   const handleSubmitRatings = async (ratings: RatingData) => {
-    if (!participantId) return;
+    if (!participantId || !currentVideo) return;
 
     try {
-      // 转换数据格式以匹配 API 期望的结构
-      const apiData = {
-        participantId,
-        excitedIntensity: ratings.excited.intensity,
-        excitedFrequency: ratings.excited.frequency,
-        alertIntensity: ratings.alert.intensity,
-        alertFrequency: ratings.alert.frequency,
-        tenseIntensity: ratings.tense.intensity,
-        tenseFrequency: ratings.tense.frequency,
-        anxiousIntensity: ratings.anxious.intensity,
-        anxiousFrequency: ratings.anxious.frequency,
-        terrifiedIntensity: ratings.terrified.intensity,
-        terrifiedFrequency: ratings.terrified.frequency,
-        desperateIntensity: ratings.desperate.intensity,
-        desperateFrequency: ratings.desperate.frequency,
-        physicalDiscomfort: ratings.physical,
-        psychologicalDiscomfort: ratings.psychological
-      };
+      const response = await fetch(`${API_URL}/api/responses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          participantId,
+          videoFileName: currentVideo,
+          excitedIntensity: ratings.excited.intensity,
+          excitedFrequency: ratings.excited.frequency,
+          alertIntensity: ratings.alert.intensity,
+          alertFrequency: ratings.alert.frequency,
+          tenseIntensity: ratings.tense.intensity,
+          tenseFrequency: ratings.tense.frequency,
+          anxiousIntensity: ratings.anxious.intensity,
+          anxiousFrequency: ratings.anxious.frequency,
+          terrifiedIntensity: ratings.terrified.intensity,
+          terrifiedFrequency: ratings.terrified.frequency,
+          desperateIntensity: ratings.desperate.intensity,
+          desperateFrequency: ratings.desperate.frequency,
+          physicalDiscomfort: ratings.physical,
+          psychologicalDiscomfort: ratings.psychological
+        }),
+      });
 
-      await experimentApi.submitResponse(participantId, apiData);
-      setPhase('healing');
+      if (!response.ok) throw new Error('提交评分失败');
+
+      // 获取下一个视频
+      const nextVideoResponse = await fetch(`${API_URL}/api/participants/${participantId}/next-video`);
+      const nextVideoData = await nextVideoResponse.json();
+
+      if (nextVideoData.completed) {
+        setPhase('healing');
+      } else {
+        setCurrentVideo(nextVideoData.videoFileName);
+        setPhase('watching');
+      }
     } catch (error) {
       console.error('Failed to submit ratings:', error);
+      alert('提交评分失败，请重试');
     }
   };
+
   return (
     <ErrorBoundary
       FallbackComponent={ErrorFallback}
@@ -95,14 +149,44 @@ export function ExperimentFlow() {
         setShowNameDialog(false);
         setParticipantName('');
         setNameError('');
+        setCurrentVideo(null);
       }}
     >
       <div className="min-h-screen w-full">
-        {phase === 'intro' && <IntroPhase onStart={handleStartExperiment} />}
-        {phase === 'watching' && <WatchingPhase onComplete={() => setPhase('rating')} />}
-        {phase === 'rating' && <RatingPhase onComplete={handleSubmitRatings} />}
-        {phase === 'healing' && <HealingPhase onComplete={() => setPhase('end')} />}
-        {phase === 'end' && <EndPhase onRestart={() => setPhase('intro')} />}
+        {phase === 'intro' && (
+          <IntroPhase onStart={handleStartExperiment} />
+        )}
+        {phase === 'watching' && participantId && currentVideo && (
+          <WatchingPhase 
+            participantId={participantId}
+            videoFileName={currentVideo}
+            onComplete={() => setPhase('rating')}
+          />
+        )}
+        {phase === 'rating' && participantId && currentVideo && (
+          <RatingPhase 
+            participantId={participantId}
+            videoFileName={currentVideo}
+            onComplete={handleSubmitRatings}
+          />
+        )}
+        {phase === 'healing' && (
+          <HealingPhase onComplete={() => setPhase('end')} />
+        )}
+        {phase === 'end' && (
+          <EndPhase onRestart={() => {
+            setPhase('intro');
+            setParticipantId(null);
+            setCurrentVideo(null);
+          }} />
+        )}
+
+        {/* 调试面板 */}
+        {/* {import.meta.env.DEV && (
+          <div className="fixed bottom-4 left-4 bg-black/80 text-white p-4 rounded-lg text-sm">
+            <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+          </div>
+        )} */}
       </div>
 
       <Dialog open={showNameDialog} onOpenChange={setShowNameDialog}>

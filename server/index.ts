@@ -1,29 +1,62 @@
-import express, { Request, Response, RequestHandler } from 'express';
+import Fastify from 'fastify';
+import cors from '@fastify/cors';
+import staticFiles from '@fastify/static';
 import { PrismaClient } from '@prisma/client';
-import cors from 'cors';
-import path from 'path';
 import { promises as fs } from 'fs';
-
-const app = express();
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+const fastify = Fastify({ logger: true });
 const prisma = new PrismaClient();
 
-app.use(cors());
-app.use(express.json());
-app.use('/videos', express.static(path.join(__dirname, 'videos')));
+// 先安装需要的依赖：
+// pnpm add fastify @fastify/cors @fastify/static
 
-// 定义类型
+// 启用 CORS
+await fastify.register(cors, {
+  origin: true  // 开发环境允许所有来源
+});
+
+
+
+// 获取当前文件的路径
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// 其他代码保持不变
+await fastify.register(staticFiles, {
+  root: path.join(__dirname, 'videos'),
+  prefix: '/videos/',
+});
+
+// 类型定义
 interface ParticipantRequest {
   name: string;
 }
 
-// 使用 RequestHandler 类型
-const createParticipant: RequestHandler<{}, {}, { name: string }> = async (req, res) => {
+// 获取视频文件列表
+async function getVideoFiles(): Promise<string[]> {
   try {
-    const { name } = req.body;
-    if (!name) {
-      return res.status(400).json({ error: 'Name is required' });
-    }
+    const videosDir = path.join(__dirname, 'videos');
+    const files = await fs.readdir(videosDir);
+    return files.filter(file =>
+      ['.mp4', '.webm'].includes(path.extname(file).toLowerCase())
+    );
+  } catch (error) {
+    console.error('Error reading video directory:', error);
+    return [];
+  }
+}
 
+// 路由定义
+fastify.post<{ Body: ParticipantRequest }>('/api/participants', async (request, reply) => {
+  const { name } = request.body;
+
+  if (!name) {
+    return reply.code(400).send({ error: 'Name is required' });
+  }
+
+  try {
     const videos = await getVideoFiles();
     const videoSequence = videos
       .sort(() => Math.random() - 0.5)
@@ -38,93 +71,136 @@ const createParticipant: RequestHandler<{}, {}, { name: string }> = async (req, 
     });
 
     const firstVideo = videoSequence.split(',')[0];
-    res.json({
+    return {
       participant,
       currentVideo: firstVideo
-    });
+    };
   } catch (error) {
-    console.error('Error creating participant:', error);
-    res.status(500).json({ error: 'Failed to create participant' });
+    request.log.error(error);
+    return reply.code(500).send({ error: 'Failed to create participant' });
   }
-};
+});
 
-const getNextVideo: RequestHandler = async (req, res) => {
+fastify.get<{ Params: { id: string } }>('/api/participants/:id/next-video', async (request, reply) => {
+  const participantId = parseInt(request.params.id);
+
   try {
-    const participantId = parseInt(req.params.id);
     const participant = await prisma.participant.findUnique({
       where: { id: participantId }
     });
 
     if (!participant) {
-      return res.status(404).json({ error: 'Participant not found' });
+      return reply.code(404).send({ error: 'Participant not found' });
     }
 
     const videos = participant.videoSequence.split(',');
     const currentIndex = participant.currentVideo;
 
     if (currentIndex >= videos.length) {
-      return res.json({ completed: true });
+      return { completed: true };
     }
 
-    res.json({
+    return {
       videoFileName: videos[currentIndex],
       currentIndex: currentIndex,
       totalVideos: videos.length
-    });
+    };
   } catch (error) {
-    console.error('Error getting next video:', error);
-    res.status(500).json({ error: 'Failed to get next video' });
+    request.log.error(error);
+    return reply.code(500).send({ error: 'Failed to get next video' });
   }
-};
+});
 
-const submitResponse: RequestHandler = async (req, res) => {
-  try {
-    const { participantId, videoFileName, ...ratings } = req.body;
-
-    const response = await prisma.videoResponse.create({
-      data: {
-        participantId,
-        videoFileName,
-        ...ratings
-      }
-    });
-
-    await prisma.participant.update({
-      where: { id: participantId },
-      data: {
-        currentVideo: {
-          increment: 1
-        }
-      }
-    });
-
-    res.json(response);
-  } catch (error) {
-    console.error('Error saving response:', error);
-    res.status(500).json({ error: 'Failed to save response' });
-  }
-};
-
-// 辅助函数
-async function getVideoFiles(): Promise<string[]> {
-  try {
-    const videosDir = path.join(__dirname, 'videos');
-    const files = await fs.readdir(videosDir);
-    return files.filter(file => 
-      ['.mp4', '.webm'].includes(path.extname(file).toLowerCase())
-    );
-  } catch (error) {
-    console.error('Error reading video directory:', error);
-    return [];
-  }
+// 首先定义精确的评分类型
+interface VideoResponseData {
+  participantId: number;
+  videoFileName: string;
+  excitedIntensity: number;
+  excitedFrequency: number;
+  alertIntensity: number;
+  alertFrequency: number;
+  tenseIntensity: number;
+  tenseFrequency: number;
+  anxiousIntensity: number;
+  anxiousFrequency: number;
+  terrifiedIntensity: number;
+  terrifiedFrequency: number;
+  desperateIntensity: number;
+  desperateFrequency: number;
+  physicalDiscomfort: number;
+  psychologicalDiscomfort: number;
 }
 
-// 路由
-app.post('/api/participants', createParticipant);
-app.get('/api/participants/:id/next-video', getNextVideo);
-app.post('/api/responses', submitResponse);
+// 修改路由处理
+fastify.post<{ Body: VideoResponseData }>(
+  '/api/responses',
+  async (request, reply) => {
+    try {
+      const {
+        participantId,
+        videoFileName,
+        excitedIntensity,
+        excitedFrequency,
+        alertIntensity,
+        alertFrequency,
+        tenseIntensity,
+        tenseFrequency,
+        anxiousIntensity,
+        anxiousFrequency,
+        terrifiedIntensity,
+        terrifiedFrequency,
+        desperateIntensity,
+        desperateFrequency,
+        physicalDiscomfort,
+        psychologicalDiscomfort
+      } = request.body;
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+      const response = await prisma.videoResponse.create({
+        data: {
+          participantId,
+          videoFileName,
+          excitedIntensity,
+          excitedFrequency,
+          alertIntensity,
+          alertFrequency,
+          tenseIntensity,
+          tenseFrequency,
+          anxiousIntensity,
+          anxiousFrequency,
+          terrifiedIntensity,
+          terrifiedFrequency,
+          desperateIntensity,
+          desperateFrequency,
+          physicalDiscomfort,
+          psychologicalDiscomfort
+        }
+      });
+
+      await prisma.participant.update({
+        where: { id: participantId },
+        data: {
+          currentVideo: {
+            increment: 1
+          }
+        }
+      });
+
+      return response;
+    } catch (error) {
+      request.log.error(error);
+      return reply.code(500).send({ error: 'Failed to save response' });
+    }
+  });
+
+// 启动服务器
+const start = async () => {
+  try {
+    await fastify.listen({ port: 5000 });
+    console.log(`Server is running on port 5000`);
+  } catch (err) {
+    fastify.log.error(err);
+    process.exit(1);
+  }
+};
+
+start();
