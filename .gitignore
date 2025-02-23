@@ -15,6 +15,7 @@ dist-ssr
 *.db
 *.db-journal
 prisma/migrations/*
+server/videos/*
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

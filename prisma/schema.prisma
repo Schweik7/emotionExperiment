@@ -9,20 +9,21 @@ datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
-
 model Participant {
-  id        Int      @id @default(autoincrement())
-  name      String   // 添加姓名字段
-  createdAt DateTime @default(now())
-  
-  // 实验数据
-  videoResponses VideoResponse[]
+  id            Int      @id @default(autoincrement())
+  name          String
+  createdAt     DateTime @default(now())
+  // 将视频序列存储为以逗号分隔的字符串
+  videoSequence String   // 存储为: "video1.mp4,video2.mp4,video3.mp4"
+  currentVideo  Int      @default(0)  // 当前观看到第几个视频
+  responses     VideoResponse[]
 }
 
 model VideoResponse {
   id            Int      @id @default(autoincrement())
   participantId Int
   participant   Participant @relation(fields: [participantId], references: [id])
+  videoFileName String    // 对应的视频文件名
   
   // 情绪评分
   excitedIntensity    Float
@@ -43,4 +44,6 @@ model VideoResponse {
   psychologicalDiscomfort Float
 
   createdAt DateTime @default(now())
+
+  @@index([participantId])
 }
