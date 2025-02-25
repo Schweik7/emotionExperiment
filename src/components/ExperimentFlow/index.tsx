@@ -15,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "react-error-boundary";
-import process from 'process';
 
 // API URL
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -71,7 +70,7 @@ export function ExperimentFlow() {
 
   const handleSubmitName = async () => {
     if (!participantName.trim()) {
-      setNameError('请输入姓名');
+      setNameError('请输入编号');
       return;
     }
 
@@ -192,9 +191,9 @@ export function ExperimentFlow() {
       <Dialog open={showNameDialog} onOpenChange={setShowNameDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>请输入您的姓名</DialogTitle>
+            <DialogTitle>请输入您的编号</DialogTitle>
             <DialogDescription>
-              您的姓名信息将被安全保存，仅用于实验数据记录。
+              您的相关信息将被安全保存，仅用于实验数据记录。
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -204,7 +203,7 @@ export function ExperimentFlow() {
                 setParticipantName(e.target.value);
                 setNameError('');
               }}
-              placeholder="请输入姓名"
+              placeholder="请输入编号"
               className="w-full"
             />
             {nameError && (

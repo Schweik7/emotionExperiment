@@ -42,7 +42,7 @@ async function getVideoFiles(): Promise<string[]> {
     return files.filter(file =>
       ['.mp4', '.webm'].includes(path.extname(file).toLowerCase())
     );
-  } catch (error) {
+  } catch (error) { 
     console.error('Error reading video directory:', error);
     return [];
   }
