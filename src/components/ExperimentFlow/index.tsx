@@ -73,24 +73,43 @@ export function ExperimentFlow() {
       setNameError('请输入编号');
       return;
     }
-
+    
     try {
       const response = await fetch(`${API_URL}/api/participants`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: participantName }),
       });
-
-      if (!response.ok) throw new Error('创建参与者失败');
-
+      
+      if (!response.ok) throw new Error('创建或查找参与者失败');
+      
       const data = await response.json();
+      
+      // 设置参与者ID
       setParticipantId(data.participant.id);
+      
+      // 检查是否已完成所有视频
+      if (data.completed) {
+        // 如果已完成所有视频，直接进入结束页面
+        setPhase('end');
+        setShowNameDialog(false);
+        return;
+      }
+      
+      // 设置当前视频
       setCurrentVideo(data.currentVideo);
+      
+      // 显示恢复会话提示
+      if (data.resuming) {
+        // 可以添加一个提示或通知，告知用户正在恢复之前的实验进度
+        console.log('正在恢复实验进度');
+      }
+      
       setShowNameDialog(false);
       setPhase('watching');
     } catch (error) {
       console.error('Failed to start experiment:', error);
-      setNameError('创建参与者失败，请重试');
+      setNameError('创建或查找参与者失败，请重试');
     }
   };
 

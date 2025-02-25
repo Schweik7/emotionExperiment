@@ -51,17 +51,44 @@ async function getVideoFiles(): Promise<string[]> {
 // 路由定义
 fastify.post<{ Body: ParticipantRequest }>('/api/participants', async (request, reply) => {
   const { name } = request.body;
-
+  
   if (!name) {
     return reply.code(400).send({ error: 'Name is required' });
   }
-
+  
   try {
+    // 先查找是否已存在该编号的参与者
+    const existingParticipant = await prisma.participant.findFirst({
+      where: { name }
+    });
+
+    // 如果已存在，返回该参与者信息和当前进度
+    if (existingParticipant) {
+      const videos = existingParticipant.videoSequence.split(',');
+      const currentVideoIndex = existingParticipant.currentVideo;
+      
+      // 检查是否已完成所有视频
+      if (currentVideoIndex >= videos.length) {
+        return {
+          participant: existingParticipant,
+          completed: true
+        };
+      }
+      
+      // 返回当前视频
+      return {
+        participant: existingParticipant,
+        currentVideo: videos[currentVideoIndex],
+        resuming: true // 标记为恢复会话
+      };
+    }
+    
+    // 如果不存在，创建新参与者
     const videos = await getVideoFiles();
     const videoSequence = videos
       .sort(() => Math.random() - 0.5)
       .join(',');
-
+    
     const participant = await prisma.participant.create({
       data: {
         name,
@@ -69,11 +96,12 @@ fastify.post<{ Body: ParticipantRequest }>('/api/participants', async (request, 
         currentVideo: 0
       }
     });
-
+    
     const firstVideo = videoSequence.split(',')[0];
     return {
       participant,
-      currentVideo: firstVideo
+      currentVideo: firstVideo,
+      resuming: false // 标记为新会话
     };
   } catch (error) {
     request.log.error(error);
