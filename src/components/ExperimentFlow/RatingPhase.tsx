@@ -66,17 +66,17 @@ export function RatingPhase({ participantId, videoFileName, onComplete }: Rating
             </CardHeader>
             <CardContent>
               {/* 表头 */}
-              <div className="grid grid-cols-[200px_1fr_1fr] gap-6 mb-6 px-4">
-                <div className="font-medium text-gray-600">情绪类型</div>
-                <div className="font-medium text-gray-600">情绪强度</div>
-                <div className="font-medium text-gray-600">出现频次</div>
+              <div className="grid grid-cols-[100px_1fr_1fr] gap-6 mb-6 px-4">
+                <div className="font-medium text-gray-600 mx-auto">情绪类型</div>
+                <div className="font-medium text-gray-600 mx-auto">情绪强度</div>
+                <div className="font-medium text-gray-600 mx-auto">出现频次</div>
               </div>
 
               {/* 情绪评分行 */}
               <div className="space-y-6">
                 {Object.entries(emotions).map(([key, emotion]) => (
-                  <div key={key} className="grid grid-cols-[200px_1fr_1fr] gap-6 px-4 py-2 hover:bg-gray-50">
-                    <div className="font-medium flex items-center">{emotion}</div>
+                  <div key={key} className="grid grid-cols-[100px_1fr_1fr] gap-6 px-4 py-2 hover:bg-gray-50">
+                    <div className="font-medium flex items-center  mx-auto">{emotion}</div>
                     <VASScale
                       value={ratings[key].intensity}
                       onChange={(value) => {
@@ -103,8 +103,8 @@ export function RatingPhase({ participantId, videoFileName, onComplete }: Rating
                 ))}
 
                 {/* 不适感评估行 */}
-                <div className="grid grid-cols-[200px_1fr_1fr] gap-6 px-4 py-2 border-t border-gray-200 mt-6 pt-6">
-                  <div className="font-medium flex items-center">不适感评估</div>
+                <div className="grid grid-cols-[100px_1fr_1fr] gap-6 px-4 py-2 border-t border-gray-200 mt-6 pt-6">
+                  <div className="font-medium flex items-center  mx-auto">不适感评估</div>
                   <VASScale
                     value={ratings.physical}
                     onChange={(value) => {
@@ -127,15 +127,18 @@ export function RatingPhase({ participantId, videoFileName, onComplete }: Rating
               </div>
 
               {/* 提交按钮 */}
-              <div className="flex justify-center mt-8">
-                <Button
-                  size="lg"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting}
-                  className="px-12"
-                >
-                  {isSubmitting ? '提交中...' : '提交评分'}
-                </Button>
+              <div className="grid grid-cols-[100px_1fr_1fr] gap-6 mt-8">
+                <div></div>
+                <div className="col-span-2 flex justify-center">
+                  <Button
+                    size="lg"
+                    onClick={handleSubmit}
+                    disabled={isSubmitting}
+                    className="px-12"
+                  >
+                    {isSubmitting ? '提交中...' : '提交评分'}
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

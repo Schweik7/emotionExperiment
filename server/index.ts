@@ -40,9 +40,10 @@ async function getVideoFiles(): Promise<string[]> {
     const videosDir = path.join(__dirname, 'videos');
     const files = await fs.readdir(videosDir);
     return files.filter(file =>
-      ['.mp4', '.webm'].includes(path.extname(file).toLowerCase())
+    (['.mp4', '.webm'].includes(path.extname(file).toLowerCase()) && // 文件扩展名是 .mp4 或 .webm
+      path.basename(file) !== '放松视频.mp4') // 文件名不为 "放松视频.mp4"
     );
-  } catch (error) { 
+  } catch (error) {
     console.error('Error reading video directory:', error);
     return [];
   }
@@ -51,11 +52,11 @@ async function getVideoFiles(): Promise<string[]> {
 // 路由定义
 fastify.post<{ Body: ParticipantRequest }>('/api/participants', async (request, reply) => {
   const { name } = request.body;
-  
+
   if (!name) {
     return reply.code(400).send({ error: 'Name is required' });
   }
-  
+
   try {
     // 先查找是否已存在该编号的参与者
     const existingParticipant = await prisma.participant.findFirst({
@@ -66,7 +67,7 @@ fastify.post<{ Body: ParticipantRequest }>('/api/participants', async (request, 
     if (existingParticipant) {
       const videos = existingParticipant.videoSequence.split(',');
       const currentVideoIndex = existingParticipant.currentVideo;
-      
+
       // 检查是否已完成所有视频
       if (currentVideoIndex >= videos.length) {
         return {
@@ -74,7 +75,7 @@ fastify.post<{ Body: ParticipantRequest }>('/api/participants', async (request, 
           completed: true
         };
       }
-      
+
       // 返回当前视频
       return {
         participant: existingParticipant,
@@ -82,13 +83,13 @@ fastify.post<{ Body: ParticipantRequest }>('/api/participants', async (request, 
         resuming: true // 标记为恢复会话
       };
     }
-    
+
     // 如果不存在，创建新参与者
     const videos = await getVideoFiles();
     const videoSequence = videos
       .sort(() => Math.random() - 0.5)
       .join(',');
-    
+
     const participant = await prisma.participant.create({
       data: {
         name,
@@ -96,7 +97,7 @@ fastify.post<{ Body: ParticipantRequest }>('/api/participants', async (request, 
         currentVideo: 0
       }
     });
-    
+
     const firstVideo = videoSequence.split(',')[0];
     return {
       participant,
