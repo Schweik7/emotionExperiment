@@ -39,10 +39,12 @@ async function getVideoFiles(): Promise<string[]> {
   try {
     const videosDir = path.join(__dirname, 'videos');
     const files = await fs.readdir(videosDir);
-    return files.filter(file =>
-    (['.mp4', '.webm'].includes(path.extname(file).toLowerCase()) && // 文件扩展名是 .mp4 或 .webm
-      path.basename(file) !== '放松视频.mp4') // 文件名不为 "放松视频.mp4"
-    );
+    const videoFiles=files.filter(file =>
+      (['.mp4', '.webm'].includes(path.extname(file).toLowerCase()) && // 文件扩展名是 .mp4 或 .webm
+        path.basename(file) !== '放松视频.mp4' && path.basename(file) !== '放松视频') // 文件名不为 "放松视频.mp4"
+      );
+    console.log(videoFiles);
+    return videoFiles; 
   } catch (error) {
     console.error('Error reading video directory:', error);
     return [];
