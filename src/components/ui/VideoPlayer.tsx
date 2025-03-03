@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactPlayer from 'react-player';
 import { Button } from "@/components/ui/button";
-import { Play, ArrowRight, SkipForward } from 'lucide-react';
+import { Play, Pause, ArrowRight, SkipForward } from 'lucide-react';
 
 // 在开发环境允许跳过视频
 const skipVideo = true;
@@ -13,49 +13,56 @@ interface VideoPlayerProps {
 }
 
 export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPlayerProps) {
-  const [playing, setPlaying] = useState(false);
-  const [completed, setCompleted] = useState(false);
-  const [ready, setReady] = useState(false);
-  const [progress, setProgress] = useState(0);
+  // 简化状态管理，只使用少量必要状态
+  const [playerState, setPlayerState] = useState({
+    playing: false,      // 是否正在播放
+    completed: false,    // 是否已完成播放
+    loading: true,       // 是否正在加载
+    error: null as string | null // 错误信息
+  });
   
   const playerRef = useRef<ReactPlayer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const completionTimerRef = useRef<number | null>(null);
   
-  // 清理资源的函数
-  const cleanupResources = useCallback(() => {
+  // 重置组件状态
+  const resetState = useCallback(() => {
+    setPlayerState({
+      playing: false,
+      completed: false,
+      loading: true,
+      error: null
+    });
+    
     if (completionTimerRef.current) {
       clearTimeout(completionTimerRef.current);
       completionTimerRef.current = null;
     }
-    
-    // 如果正在全屏模式，尝试退出
-    if (document.fullscreenElement && !playing) {
-      try {
-        document.exitFullscreen();
-      } catch (err) {
-        console.warn('退出全屏失败:', err);
-      }
-    }
-  }, [playing]);
-  
-  // 组件卸载时清理资源
-  useEffect(() => {
-    return () => {
-      cleanupResources();
-    };
-  }, [cleanupResources]);
+  }, []);
   
   // 视频URL变化时重置状态
   useEffect(() => {
-    setPlaying(false);
-    setCompleted(false);
-    setReady(false);
-    setProgress(0);
-    cleanupResources();
-  }, [videoUrl, cleanupResources]);
+    resetState();
+    
+    // 3秒后无论如何都隐藏加载指示器
+    const timer = setTimeout(() => {
+      setPlayerState(prev => ({ ...prev, loading: false }));
+    }, 3000);
+    
+    return () => {
+      clearTimeout(timer);
+      // 清理全屏
+      if (document.fullscreenElement) {
+        try {
+          document.exitFullscreen();
+        } catch (err) {
+          console.warn('退出全屏失败:', err);
+        }
+      }
+    };
+  }, [videoUrl, resetState]);
   
-  // 处理全屏
+  // 进入全屏
   const enterFullScreen = useCallback(() => {
     if (!document.fullscreenElement && containerRef.current) {
       try {
@@ -70,10 +77,10 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
   
   // 播放时自动进入全屏
   useEffect(() => {
-    if (playing && !document.fullscreenElement) {
+    if (playerState.playing && !document.fullscreenElement) {
       enterFullScreen();
     }
-  }, [playing, enterFullScreen]);
+  }, [playerState.playing, enterFullScreen]);
   
   // 禁用ESC键退出全屏
   useEffect(() => {
@@ -90,73 +97,96 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
     };
   }, []);
   
-  // 视频准备就绪的处理函数
+  // 处理播放控制
+  const handlePlayPause = useCallback(() => {
+    setPlayerState(prev => ({ 
+      ...prev, 
+      playing: !prev.playing,
+      // 确保不会在点击播放/暂停时显示加载中
+      loading: false 
+    }));
+  }, []);
+  
+  // 处理视频就绪
   const handleReady = () => {
-    console.log('视频已准备就绪');
-    setReady(true);
+    console.log('视频已就绪');
+    setPlayerState(prev => ({ ...prev, loading: false }));
   };
   
-  // 视频进度更新处理函数
-  const handleProgress = (state: { played: number; loaded: number; playedSeconds: number }) => {
-    setProgress(state.played * 100);
+  // 处理视频播放开始
+  const handlePlay = () => {
+    setPlayerState(prev => ({ ...prev, loading: false }));
+  };
+  
+  // 处理视频进度
+  const handleProgress = (state: { played: number }) => {
+    // 当有播放进度时，不再是加载状态
+    if (state.played > 0) {
+      setPlayerState(prev => {
+        if (prev.loading) return { ...prev, loading: false };
+        return prev;
+      });
+    }
     
-    // 如果播放完成
-    if (state.played >= 0.999) {
-      handleVideoEnded();
+    // 检测视频是否播放完成
+    if (state.played >= 0.99) {
+      handleComplete();
     }
   };
   
-  // 视频结束处理函数
-  const handleVideoEnded = () => {
-    if (completed) return;
+  // 处理视频播放完成
+  const handleComplete = useCallback(() => {
+    if (playerState.completed) return;
     
-    setPlaying(false);
-    setCompleted(true);
+    setPlayerState(prev => ({ 
+      ...prev,
+      playing: false, 
+      completed: true,
+      loading: false
+    }));
+    
+    // 如果正在全屏，退出全屏
+    if (document.fullscreenElement) {
+      try {
+        document.exitFullscreen();
+      } catch (err) {
+        console.warn('退出全屏失败:', err);
+      }
+    }
     
     // 10秒后执行完成回调
-    if (completionTimerRef.current === null) {
+    if (!completionTimerRef.current) {
       completionTimerRef.current = window.setTimeout(() => {
         onComplete();
         completionTimerRef.current = null;
       }, 10000) as unknown as number;
     }
-  };
-  
-  // 开始播放
-  const handlePlayClick = () => {
-    setPlaying(true);
-    if (!document.fullscreenElement) {
-      enterFullScreen();
-    }
-  };
-  
-  // 暂停播放
-  const handlePauseClick = () => {
-    setPlaying(false);
-  };
-  
-  // 跳过视频
-  const handleSkipVideo = () => {
-    setPlaying(false);
-    setCompleted(true);
-    
-    // 立即执行完成回调
-    setTimeout(() => {
-      onComplete();
-    }, 100);
-  };
+  }, [playerState.completed, onComplete]);
   
   // 视频错误处理
   const handleError = (error: any) => {
     console.error('视频播放错误:', error);
-    // 如果出错，尝试重新加载
-    if (playerRef.current && !completed) {
-      setPlaying(false);
-      setTimeout(() => {
-        setPlaying(true);
-      }, 1000);
-    }
+    setPlayerState(prev => ({ 
+      ...prev,
+      playing: false, 
+      loading: false,
+      error: '视频播放失败，请检查网络连接或刷新页面'
+    }));
   };
+  
+  // 跳过视频（仅开发环境）
+  const handleSkipVideo = useCallback(() => {
+    setPlayerState({
+      playing: false,
+      completed: true,
+      loading: false,
+      error: null
+    });
+    
+    setTimeout(() => {
+      onComplete();
+    }, 100);
+  }, [onComplete]);
 
   return (
     <div 
@@ -171,6 +201,34 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
         </span>
       </div>
       
+      {/* 加载指示器 */}
+      {playerState.loading && !playerState.error && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10">
+          <div className="w-16 h-16 border-4 border-t-blue-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-white text-center mt-4">视频加载中...</p>
+        </div>
+      )}
+      
+      {/* 错误提示 */}
+      {playerState.error && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-20">
+          <div className="text-red-500 mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="8" x2="12" y2="12"></line>
+              <line x1="12" y1="16" x2="12.01" y2="16"></line>
+            </svg>
+          </div>
+          <p className="text-white text-center mb-4">{playerState.error}</p>
+          <Button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            刷新页面
+          </Button>
+        </div>
+      )}
+      
       {/* ReactPlayer组件 */}
       <div className="player-wrapper w-full h-full">
         <ReactPlayer
@@ -179,64 +237,74 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
           url={videoUrl}
           width="100%"
           height="100%"
-          playing={playing}
+          playing={playerState.playing}
           controls={false}
           playsinline
           pip={false}
           stopOnUnmount={true}
           onReady={handleReady}
+          onPlay={handlePlay}
           onProgress={handleProgress}
-          onEnded={handleVideoEnded}
+          onEnded={handleComplete}
           onError={handleError}
+          progressInterval={500}
+          playbackRate={1.0}
+          volume={1}
+          muted={false}
           config={{
             file: {
               attributes: {
                 controlsList: 'nodownload noplaybackrate nofullscreen',
                 disablePictureInPicture: true,
+                preload: 'auto',
                 onContextMenu: (e: React.MouseEvent) => e.preventDefault()
               },
               forceVideo: true,
-              forceAudio: false
+              forceAudio: false,
+              fastSeek: true
             }
           }}
           style={{
-            pointerEvents: 'none', // 禁止点击视频元素
-            objectFit: 'contain'
+            pointerEvents: 'none',
+            objectFit: 'contain',
+            backgroundColor: 'black'
           }}
         />
       </div>
       
-      {/* 播放按钮 - 仅在视频准备就绪且未播放时显示 */}
-      {ready && !playing && !completed && (
-        <button
-          className="absolute inset-0 w-full h-full flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors z-10"
-          onClick={handlePlayClick}
-        >
-          <div className="w-20 h-20 flex items-center justify-center rounded-full bg-white/30 hover:bg-white/40 transition-colors">
-            <Play className="h-10 w-10 text-white" />
-          </div>
-        </button>
-      )}
-      
-      {/* 暂停按钮 - 仅在播放中显示 */}
-      {playing && !completed && (
-        <div className="absolute top-4 right-4 z-20">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="bg-black/50 hover:bg-black/70 text-white rounded-full w-12 h-12"
-            onClick={handlePauseClick}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="6" y="4" width="4" height="16"></rect>
-              <rect x="14" y="4" width="4" height="16"></rect>
-            </svg>
-          </Button>
-        </div>
+      {/* 播放/暂停控制 - 不在加载时和完成后显示 */}
+      {!playerState.loading && !playerState.completed && !playerState.error && (
+        <>
+          {/* 播放按钮 - 仅在暂停时显示 */}
+          {!playerState.playing && (
+            <button
+              className="absolute inset-0 w-full h-full flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors z-10"
+              onClick={handlePlayPause}
+            >
+              <div className="w-20 h-20 flex items-center justify-center rounded-full bg-white/30 hover:bg-white/40 transition-colors">
+                <Play className="h-10 w-10 text-white" />
+              </div>
+            </button>
+          )}
+
+          {/* 暂停按钮 - 仅在播放时显示，位于右上角 */}
+          {playerState.playing && (
+            <div className="absolute top-4 right-4 z-20">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="bg-black/50 hover:bg-black/70 text-white rounded-full w-12 h-12"
+                onClick={handlePlayPause}
+              >
+                <Pause className="h-6 w-6" />
+              </Button>
+            </div>
+          )}
+        </>
       )}
       
       {/* 开发环境跳过按钮 */}
-      {import.meta.env.DEV && skipVideo && !completed && (
+      {import.meta.env.DEV && skipVideo && !playerState.completed && (
         <div className="absolute bottom-4 right-4 z-20">
           <Button
             variant="ghost"
@@ -250,7 +318,7 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
       )}
       
       {/* 视频完成界面 */}
-      {completed && (
+      {playerState.completed && (
         <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-20">
           <div className="text-center space-y-6">
             <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto">
