@@ -15,6 +15,7 @@ export function WatchingPhase({ participantId, videoFileName, onComplete }: Watc
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   const videoUrl = `${API_URL}/videos/${videoFileName}`;
+  // const videoUrl=`../../../videos/${videoFileName}`
 
   useEffect(() => {
     // 检查视频是否可访问

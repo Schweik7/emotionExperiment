@@ -1,6 +1,8 @@
+/* @import '~video.js/dist/video-js.css'; */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 .debug-outline * {
   outline: 1px solid rgba(255, 0, 0, 0.1);
 }

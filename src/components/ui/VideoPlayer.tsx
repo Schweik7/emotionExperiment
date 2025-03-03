@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import ReactPlayer from 'react-player';
 import { Button } from "@/components/ui/button";
-import { Play, Pause, ArrowRight, SkipForward } from 'lucide-react';
+import { Play, ArrowRight, SkipForward } from 'lucide-react';
 
+// 在开发环境允许跳过视频
 const skipVideo = true;
 
 interface VideoPlayerProps {
@@ -11,165 +13,201 @@ interface VideoPlayerProps {
 }
 
 export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPlayerProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const [ready, setReady] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  
+  const playerRef = useRef<ReactPlayer>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // 处理视频播放和暂停
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    if (isPlaying) {
-      video.play().catch(error => {
-        console.error('视频播放失败:', error);
-        setIsPlaying(false);
-      });
-    } else {
-      video.pause();
+  const completionTimerRef = useRef<number | null>(null);
+  
+  // 清理资源的函数
+  const cleanupResources = useCallback(() => {
+    if (completionTimerRef.current) {
+      clearTimeout(completionTimerRef.current);
+      completionTimerRef.current = null;
     }
-  }, [isPlaying]);
-
-  // 监听全屏变化
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(
-        document.fullscreenElement !== null ||
-        document.webkitFullscreenElement !== null ||
-        document.mozFullScreenElement !== null ||
-        document.msFullscreenElement !== null
-      );
-    };
-
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-
-    return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-    };
-  }, []);
-
-  // 自动进入全屏
-  const enterFullScreen = () => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    try {
-      if (container.requestFullscreen) {
-        container.requestFullscreen();
-      } else if ((container as any).mozRequestFullScreen) { // Firefox
-        (container as any).mozRequestFullScreen();
-      } else if ((container as any).webkitRequestFullscreen) { // Chrome and Safari
-        (container as any).webkitRequestFullscreen();
-      } else if ((container as any).msRequestFullscreen) { // IE/Edge
-        (container as any).msRequestFullscreen();
+    
+    // 如果正在全屏模式，尝试退出
+    if (document.fullscreenElement && !playing) {
+      try {
+        document.exitFullscreen();
+      } catch (err) {
+        console.warn('退出全屏失败:', err);
       }
-    } catch (error) {
-      console.error('全屏请求失败:', error);
     }
-  };
-
-  // 当视频开始播放时进入全屏
+  }, [playing]);
+  
+  // 组件卸载时清理资源
   useEffect(() => {
-    if (isPlaying && !isFullscreen) {
+    return () => {
+      cleanupResources();
+    };
+  }, [cleanupResources]);
+  
+  // 视频URL变化时重置状态
+  useEffect(() => {
+    setPlaying(false);
+    setCompleted(false);
+    setReady(false);
+    setProgress(0);
+    cleanupResources();
+  }, [videoUrl, cleanupResources]);
+  
+  // 处理全屏
+  const enterFullScreen = useCallback(() => {
+    if (!document.fullscreenElement && containerRef.current) {
+      try {
+        containerRef.current.requestFullscreen().catch(err => {
+          console.warn('无法进入全屏:', err);
+        });
+      } catch (err) {
+        console.warn('请求全屏发生错误:', err);
+      }
+    }
+  }, []);
+  
+  // 播放时自动进入全屏
+  useEffect(() => {
+    if (playing && !document.fullscreenElement) {
       enterFullScreen();
     }
-  }, [isPlaying, isFullscreen]);
-
-  // 处理进度更新
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const updateProgress = () => {
-      const newProgress = (video.currentTime / video.duration) * 100;
-      setProgress(newProgress);
-      
-      if (newProgress >= 100) {
-        setIsPlaying(false);
-      }
-    };
-
-    if (isPlaying) {
-      const interval = setInterval(updateProgress, 100); // 每100ms更新一次进度
-      return () => clearInterval(interval);
-    }
-
-    return () => {};
-  }, [isPlaying]);
-
-  // 监听进度到达100%
-  useEffect(() => {
-    if (progress >= 100) {
-      setIsPlaying(false);
-      const timer = setTimeout(() => {
-        onComplete();
-      }, 10000);  // 10秒后去评分阶段
-      return () => clearTimeout(timer);
-    }
-  }, [progress, onComplete]);
-
-  // 禁止退出全屏的键盘事件
+  }, [playing, enterFullScreen]);
+  
+  // 禁用ESC键退出全屏
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // 阻止F11, ESC和其他可能退出全屏的按键
-      if (e.key === 'F11' || e.key === 'Escape' || e.keyCode === 27) {
+      if (e.key === 'Escape' || e.key === 'F11' || e.keyCode === 27) {
         e.preventDefault();
         return false;
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, true);
     };
   }, []);
-
+  
+  // 视频准备就绪的处理函数
+  const handleReady = () => {
+    console.log('视频已准备就绪');
+    setReady(true);
+  };
+  
+  // 视频进度更新处理函数
+  const handleProgress = (state: { played: number; loaded: number; playedSeconds: number }) => {
+    setProgress(state.played * 100);
+    
+    // 如果播放完成
+    if (state.played >= 0.999) {
+      handleVideoEnded();
+    }
+  };
+  
+  // 视频结束处理函数
+  const handleVideoEnded = () => {
+    if (completed) return;
+    
+    setPlaying(false);
+    setCompleted(true);
+    
+    // 10秒后执行完成回调
+    if (completionTimerRef.current === null) {
+      completionTimerRef.current = window.setTimeout(() => {
+        onComplete();
+        completionTimerRef.current = null;
+      }, 10000) as unknown as number;
+    }
+  };
+  
+  // 开始播放
   const handlePlayClick = () => {
-    setIsPlaying(true);
-    // 确保进入全屏
-    if (!isFullscreen) {
+    setPlaying(true);
+    if (!document.fullscreenElement) {
       enterFullScreen();
     }
   };
-
+  
+  // 暂停播放
   const handlePauseClick = () => {
-    setIsPlaying(false);
+    setPlaying(false);
+  };
+  
+  // 跳过视频
+  const handleSkipVideo = () => {
+    setPlaying(false);
+    setCompleted(true);
+    
+    // 立即执行完成回调
+    setTimeout(() => {
+      onComplete();
+    }, 100);
+  };
+  
+  // 视频错误处理
+  const handleError = (error: any) => {
+    console.error('视频播放错误:', error);
+    // 如果出错，尝试重新加载
+    if (playerRef.current && !completed) {
+      setPlaying(false);
+      setTimeout(() => {
+        setPlaying(true);
+      }, 1000);
+    }
   };
 
   return (
     <div 
       ref={containerRef}
-      className="relative bg-black w-full aspect-video rounded-lg overflow-hidden"
+      className="relative bg-black w-full h-full overflow-hidden"
       style={{ width: '100%', height: '100vh' }}
     >
-      <div className="absolute top-4 left-4 bg-black/50 px-4 py-2 rounded-full z-10">
+      {/* 页面顶部标签 */}
+      <div className="absolute top-4 left-4 bg-black/50 px-4 py-2 rounded-full z-20">
         <span className="text-white text-sm">
           {isHealing ? '放松训练' : '实验视频'}
         </span>
       </div>
-
-      {/* 视频元素 - 移除controls属性，添加disablePictureInPicture和controlsList */}
-      <video
-        ref={videoRef}
-        className="w-full h-full object-contain"
-        src={videoUrl}
-        playsInline
-        disablePictureInPicture
-        onContextMenu={(e) => e.preventDefault()} // 禁止右键菜单
-        controlsList="nodownload noplaybackrate nofullscreen" // 禁止下载、播放速率控制和全屏按钮
-        onEnded={() => setProgress(100)}
-      />
-
-      {/* 播放按钮 */}
-      {!isPlaying && progress < 100 && (
+      
+      {/* ReactPlayer组件 */}
+      <div className="player-wrapper w-full h-full">
+        <ReactPlayer
+          ref={playerRef}
+          className="react-player"
+          url={videoUrl}
+          width="100%"
+          height="100%"
+          playing={playing}
+          controls={false}
+          playsinline
+          pip={false}
+          stopOnUnmount={true}
+          onReady={handleReady}
+          onProgress={handleProgress}
+          onEnded={handleVideoEnded}
+          onError={handleError}
+          config={{
+            file: {
+              attributes: {
+                controlsList: 'nodownload noplaybackrate nofullscreen',
+                disablePictureInPicture: true,
+                onContextMenu: (e: React.MouseEvent) => e.preventDefault()
+              },
+              forceVideo: true,
+              forceAudio: false
+            }
+          }}
+          style={{
+            pointerEvents: 'none', // 禁止点击视频元素
+            objectFit: 'contain'
+          }}
+        />
+      </div>
+      
+      {/* 播放按钮 - 仅在视频准备就绪且未播放时显示 */}
+      {ready && !playing && !completed && (
         <button
           className="absolute inset-0 w-full h-full flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors z-10"
           onClick={handlePlayClick}
@@ -179,36 +217,40 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
           </div>
         </button>
       )}
-
-      {/* 暂停按钮 */}
-      {isPlaying && progress < 100 && (
-        <div className="absolute top-4 right-4 z-10">
+      
+      {/* 暂停按钮 - 仅在播放中显示 */}
+      {playing && !completed && (
+        <div className="absolute top-4 right-4 z-20">
           <Button
             variant="ghost"
             size="icon"
             className="bg-black/50 hover:bg-black/70 text-white rounded-full w-12 h-12"
             onClick={handlePauseClick}
           >
-            <Pause className="h-6 w-6" />
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="6" y="4" width="4" height="16"></rect>
+              <rect x="14" y="4" width="4" height="16"></rect>
+            </svg>
           </Button>
         </div>
       )}
-
-      {/* 开发环境的跳过按钮 */}
-      {import.meta.env.DEV && skipVideo && progress < 100 && (
-        <div className="absolute bottom-4 right-4 z-10">
+      
+      {/* 开发环境跳过按钮 */}
+      {import.meta.env.DEV && skipVideo && !completed && (
+        <div className="absolute bottom-4 right-4 z-20">
           <Button
             variant="ghost"
             className="bg-black/50 hover:bg-black/70 text-white"
-            onClick={() => setProgress(100)}
+            onClick={handleSkipVideo}
           >
             <SkipForward className="mr-2 h-4 w-4" />
             跳过视频
           </Button>
         </div>
       )}
-
-      {progress >= 100 && (
+      
+      {/* 视频完成界面 */}
+      {completed && (
         <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-20">
           <div className="text-center space-y-6">
             <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto">
@@ -217,7 +259,7 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
               </svg>
             </div>
             <h2 className="text-2xl font-semibold text-white">观看完成</h2>
-            <Button 
+            <Button
               size="lg"
               className="bg-white text-black hover:bg-white/90"
               onClick={onComplete}

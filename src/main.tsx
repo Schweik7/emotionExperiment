@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import './index.css';
+// import '~video.js/dist/video-js.css';
 const root = document.getElementById('root')!;
 // 直接设置根元素样式
 root.style.width = '100vw';
