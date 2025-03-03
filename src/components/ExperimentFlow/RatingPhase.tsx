@@ -127,18 +127,15 @@ export function RatingPhase({ participantId, videoFileName, onComplete }: Rating
               </div>
 
               {/* 提交按钮 */}
-              <div className="grid grid-cols-[100px_1fr_1fr] gap-6 mt-8">
-                <div></div>
-                <div className="col-span-2 flex justify-center">
-                  <Button
-                    size="lg"
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="px-12"
-                  >
-                    {isSubmitting ? '提交中...' : '提交评分'}
-                  </Button>
-                </div>
+              <div className="flex justify-center mt-8">
+                <Button
+                  size="lg"
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className="px-12"
+                >
+                  {isSubmitting ? '提交中...' : '提交评分'}
+                </Button>
               </div>
             </CardContent>
           </Card>

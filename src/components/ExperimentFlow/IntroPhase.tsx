@@ -14,9 +14,9 @@ export function IntroPhase({ onStart }: { onStart: () => void }) {
             <div className="text-center space-y-4">
               <h2 className="text-xl font-medium text-blue-600">欢迎参与本次实验！</h2>
               <div className="text-gray-600 space-y-2">
-                <p>本实验旨在研究不同情境下的情绪体验，您的参与对于深入理解人类情绪反应具有重要意义。</p>
-                <p>在实验中，您将观看一段简短视频，并对自己的情绪体验进行评分。最后，我们会为您播放一段放松视频，帮助您平静心情。</p>
-                <p className="text-sm text-gray-500">实验预计总时长：5-10分钟</p>
+                <p>本实验旨在研究不同情境下的情绪体验，您的参与对于深入理解人类情绪有重要意义。</p>
+                <p>在实验中，您将观看一些简短视频，并对自己的情绪体验进行评分。最后，我们会为您播放一段放松视频，帮助您平复心情。</p>
+                <p className="text-sm text-gray-500">实验预计总时长：20-30分钟</p>
               </div>
             </div>
 
