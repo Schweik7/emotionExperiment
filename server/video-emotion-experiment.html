@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>情绪评定实验</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2 {
+            color: #333;
+            text-align: center;
+        }
+        .video-container {
+            width: 100%;
+            margin: 20px auto;
+            position: relative;
+        }
+        video {
+            width: 100%;
+            border-radius: 5px;
+            background-color: #000;
+        }
+        .file-input {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .rating-section {
+            margin: 30px 0;
+            display: none;
+        }
+        .emotion-rating {
+            margin-bottom: 25px;
+        }
+        .emotion-label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .slider-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        input[type="range"] {
+            flex: 1;
+            margin: 0 15px;
+        }
+        .slider-value {
+            width: 30px;
+            text-align: center;
+        }
+        .navigation {
+            display: flex;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .progress {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #666;
+        }
+        .instructions {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #e9f7ef;
+            border-radius: 5px;
+            border-left: 5px solid #45a049;
+        }
+        .finish-screen {
+            text-align: center;
+            display: none;
+        }
+        .hidden {
+            display: none;
+        }
+        .video-select {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px dashed #aaa;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .video-list {
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .video-item {
+            padding: 8px;
+            margin: 5px 0;
+            background-color: #f0f0f0;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .video-item:hover {
+            background-color: #e0e0e0;
+        }
+        .video-item.selected {
+            background-color: #d4edda;
+            border-left: 3px solid #4CAF50;
+        }
+        .loading-spinner {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .video-controls {
+            display: flex;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        .file-list-container {
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>视频情绪评定实验</h1>
+        
+        <div id="start-screen">
+            <div class="instructions">
+                <h2>实验说明</h2>
+                <p>您好！感谢您参与此次情绪评定实验。</p>
+                <p>在本实验中，您将观看一系列视频，并在每个视频结束后评定您感受到的情绪强度和频次。</p>
+                <p>评定内容包括：兴奋、紧张、焦虑、惊恐、绝望以及生理不适的程度。</p>
+                <p>实验最后会有一个放松视频帮助您调整状态。</p>
+                <p><strong>请在安静、不受干扰的环境中完成实验。</strong></p>
+            </div>
+            
+            <div class="video-select">
+                <h3>选择实验视频</h3>
+                <p>请选择实验中需要评定的视频文件：</p>
+                <input type="file" id="video-files" multiple accept="video/*" />
+                <div id="selected-files" class="file-list-container"></div>
+            </div>
+            
+            <div class="video-select">
+                <h3>选择放松视频</h3>
+                <p>请选择实验结束时的放松视频：</p>
+                <input type="file" id="relaxation-file" accept="video/*" />
+                <div id="selected-relaxation" class="file-list-container"></div>
+            </div>
+            
+            <div class="navigation">
+                <button id="start-button" disabled>开始实验</button>
+            </div>
+        </div>
+
+        <div id="experiment-screen" class="hidden">
+            <div class="progress">
+                <span id="progress-text">视频 1 / ?</span>
+            </div>
+            
+            <div class="video-container">
+                <video id="video-player" controls>
+                    您的浏览器不支持视频播放。
+                </video>
+                <div id="video-loading" class="loading-spinner"></div>
+            </div>
+            
+            <div class="video-controls">
+                <button id="replay-button">重播视频</button>
+            </div>
+            
+            <div id="rating-section" class="rating-section">
+                <h2>请评定您观看视频时的感受</h2>
+                
+                <div class="emotion-rating">
+                    <label class="emotion-label">兴奋程度：</label>
+                    <div class="slider-container">
+                        <span>低</span>
+                        <input type="range" id="excitement" min="0" max="10" value="0" step="1">
+                        <span>高</span>
+                        <span class="slider-value" id="excitement-value">0</span>
+                    </div>
+                </div>
+                
+                <div class="emotion-rating">
+                    <label class="emotion-label">紧张程度：</label>
+                    <div class="slider-container">
+                        <span>低</span>
+                        <input type="range" id="tension" min="0" max="10" value="0" step="1">
+                        <span>高</span>
+                        <span class="slider-value" id="tension-value">0</span>
+                    </div>
+                </div>
+                
+                <div class="emotion-rating">
+                    <label class="emotion-label">焦虑程度：</label>
+                    <div class="slider-container">
+                        <span>低</span>
+                        <input type="range" id="anxiety" min="0" max="10" value="0" step="1">
+                        <span>高</span>
+                        <span class="slider-value" id="anxiety-value">0</span>
+                    </div>
+                </div>
+                
+                <div class="emotion-rating">
+                    <label class="emotion-label">惊恐程度：</label>
+                    <div class="slider-container">
+                        <span>低</span>
+                        <input type="range" id="fear" min="0" max="10" value="0" step="1">
+                        <span>高</span>
+                        <span class="slider-value" id="fear-value">0</span>
+                    </div>
+                </div>
+                
+                <div class="emotion-rating">
+                    <label class="emotion-label">绝望程度：</label>
+                    <div class="slider-container">
+                        <span>低</span>
+                        <input type="range" id="despair" min="0" max="10" value="0" step="1">
+                        <span>高</span>
+                        <span class="slider-value" id="despair-value">0</span>
+                    </div>
+                </div>
+                
+                <div class="emotion-rating">
+                    <label class="emotion-label">生理不适程度：</label>
+                    <div class="slider-container">
+                        <span>低</span>
+                        <input type="range" id="discomfort" min="0" max="10" value="0" step="1">
+                        <span>高</span>
+                        <span class="slider-value" id="discomfort-value">0</span>
+                    </div>
+                </div>
+                
+                <div class="navigation">
+                    <button id="next-button">下一个视频</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="finish-screen" class="finish-screen">
+            <h2>实验已完成</h2>
+            <p>非常感谢您的参与！</p>
+            <p>以下是放松视频，请观看以调整状态：</p>
+            <div class="video-container">
+                <video id="relaxation-video" controls>
+                    您的浏览器不支持视频播放。
+                </video>
+                <div id="relaxation-loading" class="loading-spinner"></div>
+            </div>
+            <div class="navigation">
+                <button id="download-results">下载实验结果</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM 元素
+        const startScreen = document.getElementById('start-screen');
+        const experimentScreen = document.getElementById('experiment-screen');
+        const finishScreen = document.getElementById('finish-screen');
+        const videoPlayer = document.getElementById('video-player');
+        const relaxationVideoPlayer = document.getElementById('relaxation-video');
+        const ratingSection = document.getElementById('rating-section');
+        const progressText = document.getElementById('progress-text');
+        const nextButton = document.getElementById('next-button');
+        const startButton = document.getElementById('start-button');
+        const downloadButton = document.getElementById('download-results');
+        const replayButton = document.getElementById('replay-button');
+        const videoLoading = document.getElementById('video-loading');
+        const relaxationLoading = document.getElementById('relaxation-loading');
+        
+        // 文件选择元素
+        const videoFilesInput = document.getElementById('video-files');
+        const relaxationFileInput = document.getElementById('relaxation-file');
+        const selectedFilesContainer = document.getElementById('selected-files');
+        const selectedRelaxationContainer = document.getElementById('selected-relaxation');
+        
+        // 视频和实验数据
+        let experimentVideos = [];
+        let relaxationVideo = null;
+        let experimentResults = [];
+        let currentVideoIndex = 0;
+        
+        // 所有情绪评分滑块
+        const emotionSliders = {
+            excitement: document.getElementById('excitement'),
+            tension: document.getElementById('tension'),
+            anxiety: document.getElementById('anxiety'),
+            fear: document.getElementById('fear'),
+            despair: document.getElementById('despair'),
+            discomfort: document.getElementById('discomfort')
+        };
+        
+        // 情绪评分值显示
+        const emotionValues = {
+            excitement: document.getElementById('excitement-value'),
+            tension: document.getElementById('tension-value'),
+            anxiety: document.getElementById('anxiety-value'),
+            fear: document.getElementById('fear-value'),
+            despair: document.getElementById('despair-value'),
+            discomfort: document.getElementById('discomfort-value')
+        };
+        
+        // 初始化情绪评分显示
+        for (const emotion in emotionSliders) {
+            emotionSliders[emotion].addEventListener('input', function() {
+                emotionValues[emotion].textContent = this.value;
+            });
+        }
+        
+        // 视频文件选择处理
+        videoFilesInput.addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            experimentVideos = files;
+            
+            // 显示选择的文件
+            selectedFilesContainer.innerHTML = '';
+            if (files.length > 0) {
+                const fileList = document.createElement('ul');
+                fileList.style.listStyleType = 'none';
+                fileList.style.padding = '0';
+                
+                files.forEach((file, index) => {
+                    const listItem = document.createElement('li');
+                    listItem.textContent = `${index + 1}. ${file.name}`;
+                    listItem.style.padding = '5px 0';
+                    fileList.appendChild(listItem);
+                });
+                
+                selectedFilesContainer.appendChild(fileList);
+                checkStartButtonState();
+            }
+        });
+        
+        // 放松视频选择处理
+        relaxationFileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                relaxationVideo = e.target.files[0];
+                
+                // 显示选择的放松视频
+                selectedRelaxationContainer.innerHTML = '';
+                const fileInfo = document.createElement('p');
+                fileInfo.textContent = relaxationVideo.name;
+                selectedRelaxationContainer.appendChild(fileInfo);
+                
+                checkStartButtonState();
+            }
+        });
+        
+        // 检查开始按钮状态
+        function checkStartButtonState() {
+            startButton.disabled = !(experimentVideos.length > 0 && relaxationVideo);
+        }
+        
+        // 更新进度文本
+        function updateProgressText() {
+            progressText.textContent = `视频 ${currentVideoIndex + 1} / ${experimentVideos.length}`;
+        }
+        
+        // 重置所有评分
+        function resetRatings() {
+            for (const emotion in emotionSliders) {
+                emotionSliders[emotion].value = 0;
+                emotionValues[emotion].textContent = 0;
+            }
+        }
+        
+        // 加载当前视频
+        function loadCurrentVideo() {
+            if (currentVideoIndex < experimentVideos.length) {
+                // 显示加载动画
+                videoLoading.style.display = 'block';
+                
+                // 创建视频URL
+                const videoURL = URL.createObjectURL(experimentVideos[currentVideoIndex]);
+                videoPlayer.src = videoURL;
+                
+                // 更新进度
+                updateProgressText();
+                
+                // 隐藏评分区域
+                ratingSection.style.display = 'none';
+                
+                // 监听视频加载完成
+                videoPlayer.onloadeddata = function() {
+                    videoLoading.style.display = 'none';
+                    videoPlayer.play();
+                };
+                
+                // 监听错误
+                videoPlayer.onerror = function() {
+                    videoLoading.style.display = 'none';
+                    alert(`视频 "${experimentVideos[currentVideoIndex].name}" 加载失败，请检查文件格式。`);
+                };
+            } else {
+                // 实验结束，显示放松视频
+                experimentScreen.classList.add('hidden');
+                finishScreen.style.display = 'block';
+                
+                // 显示加载动画
+                relaxationLoading.style.display = 'block';
+                
+                // 创建放松视频URL
+                const relaxURL = URL.createObjectURL(relaxationVideo);
+                relaxationVideoPlayer.src = relaxURL;
+                
+                // 监听视频加载完成
+                relaxationVideoPlayer.onloadeddata = function() {
+                    relaxationLoading.style.display = 'none';
+                    relaxationVideoPlayer.play();
+                };
+            }
+        }
+        
+        // 收集当前评分
+        function collectRatings() {
+            const ratings = {};
+            for (const emotion in emotionSliders) {
+                ratings[emotion] = parseInt(emotionSliders[emotion].value);
+            }
+            
+            experimentResults.push({
+                videoIndex: currentVideoIndex,
+                videoName: experimentVideos[currentVideoIndex].name,
+                ratings: ratings,
+                timestamp: new Date().toISOString()
+            });
+        }
+        
+        // 视频播放结束显示评分区域
+        videoPlayer.addEventListener('ended', function() {
+            ratingSection.style.display = 'block';
+        });
+        
+        // 重播当前视频
+        replayButton.addEventListener('click', function() {
+            videoPlayer.currentTime = 0;
+            videoPlayer.play();
+        });
+        
+        // 开始实验
+        startButton.addEventListener('click', function() {
+            startScreen.classList.add('hidden');
+            experimentScreen.classList.remove('hidden');
+            loadCurrentVideo();
+        });
+        
+        // 下一个视频
+        nextButton.addEventListener('click', function() {
+            collectRatings();
+            resetRatings();
+            currentVideoIndex++;
+            loadCurrentVideo();
+        });
+        
+        // 下载实验结果
+        downloadButton.addEventListener('click', function() {
+            const result = {
+                experimentDate: new Date().toISOString(),
+                videoCount: experimentVideos.length,
+                results: experimentResults
+            };
+            
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(result, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "experiment_results_" + new Date().toISOString().replace(/:/g, '-') + ".json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        });
+        
+        // 清理视频URL对象
+        function revokeVideoURLs() {
+            if (videoPlayer.src) URL.revokeObjectURL(videoPlayer.src);
+            if (relaxationVideoPlayer.src) URL.revokeObjectURL(relaxationVideoPlayer.src);
+        }
+        
+        // 页面关闭前清理资源
+        window.addEventListener('beforeunload', revokeVideoURLs);
+    </script>
+</body>
+</html>

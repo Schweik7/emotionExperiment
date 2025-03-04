@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactPlayer from 'react-player';
 import { Button } from "@/components/ui/button";
-import { Play, Pause, ArrowRight, SkipForward } from 'lucide-react';
+import { Play, Pause, ArrowRight } from 'lucide-react';
 
-// 在开发环境允许跳过视频
+// 在开发环境允许跳过视频（通过空格键，不显示按钮）
 const skipVideo = true;
 
 interface VideoPlayerProps {
@@ -82,12 +82,19 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
     }
   }, [playerState.playing, enterFullScreen]);
   
-  // 禁用ESC键退出全屏
+  // 键盘事件处理
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 阻止ESC键退出全屏
       if (e.key === 'Escape' || e.key === 'F11' || e.keyCode === 27) {
         e.preventDefault();
         return false;
+      }
+      
+      // 添加空格键跳过功能（仅在开发环境且skipVideo为true时启用）
+      if (import.meta.env.DEV && skipVideo && e.code === 'Space' && !playerState.completed) {
+        e.preventDefault();
+        handleSkipVideo();
       }
     };
 
@@ -95,7 +102,7 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
     return () => {
       window.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, []);
+  }, [playerState.completed]);
   
   // 处理播放控制
   const handlePlayPause = useCallback(() => {
@@ -301,20 +308,6 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
             </div>
           )}
         </>
-      )}
-      
-      {/* 开发环境跳过按钮 */}
-      {import.meta.env.DEV && skipVideo && !playerState.completed && (
-        <div className="absolute bottom-4 right-4 z-20">
-          <Button
-            variant="ghost"
-            className="bg-black/50 hover:bg-black/70 text-white"
-            onClick={handleSkipVideo}
-          >
-            <SkipForward className="mr-2 h-4 w-4" />
-            跳过视频
-          </Button>
-        </div>
       )}
       
       {/* 视频完成界面 */}

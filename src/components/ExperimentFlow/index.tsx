@@ -15,11 +15,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "react-error-boundary";
+import { FileSystemProvider, useFileSystem } from './FileSystemContext';
 
 // API URL
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-type Phase = 'intro' | 'watching' | 'rating' | 'healing' | 'end';
+type Phase = 'intro' | 'watching' | 'rating' | 'healing' | 'end' | 'select-directory';
 
 interface RatingData {
   excited: { intensity: number; frequency: number };
@@ -44,13 +45,14 @@ function ErrorFallback({ resetErrorBoundary }) {
   );
 }
 
-export function ExperimentFlow() {
+function ExperimentFlowContent() {
   const [phase, setPhase] = useState<Phase>('intro');
   const [participantId, setParticipantId] = useState<number | null>(null);
   const [showNameDialog, setShowNameDialog] = useState(false);
   const [participantName, setParticipantName] = useState('');
   const [nameError, setNameError] = useState('');
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
+  const { selectDirectory, directoryHandle, isReady } = useFileSystem();
 
   // 开发环境调试面板
   const [debugInfo, setDebugInfo] = useState({});
@@ -60,9 +62,17 @@ export function ExperimentFlow() {
         phase,
         participantId,
         currentVideo,
+        hasDirectoryAccess: !!directoryHandle
       });
     }
-  }, [phase, participantId, currentVideo]);
+  }, [phase, participantId, currentVideo, directoryHandle]);
+
+  // 检查是否已经选择了目录
+  useEffect(() => {
+    if (isReady && phase === 'watching' && !directoryHandle) {
+      setPhase('select-directory');
+    }
+  }, [phase, directoryHandle, isReady]);
 
   const handleStartExperiment = () => {
     setShowNameDialog(true);
@@ -106,10 +116,26 @@ export function ExperimentFlow() {
       }
       
       setShowNameDialog(false);
-      setPhase('watching');
+      
+      // 检查是否已选择目录
+      if (directoryHandle) {
+        setPhase('watching');
+      } else {
+        setPhase('select-directory');
+      }
     } catch (error) {
       console.error('Failed to start experiment:', error);
       setNameError('创建或查找参与者失败，请重试');
+    }
+  };
+
+  const handleSelectDirectory = async () => {
+    const success = await selectDirectory();
+    if (success) {
+      // 如果选择成功且有当前视频，进入观看阶段
+      if (currentVideo) {
+        setPhase('watching');
+      }
     }
   };
 
@@ -159,53 +185,54 @@ export function ExperimentFlow() {
   };
 
   return (
-    <ErrorBoundary
-      FallbackComponent={ErrorFallback}
-      onReset={() => {
-        setPhase('intro');
-        setParticipantId(null);
-        setShowNameDialog(false);
-        setParticipantName('');
-        setNameError('');
-        setCurrentVideo(null);
-      }}
-    >
-      <div className="min-h-screen w-full">
-        {phase === 'intro' && (
-          <IntroPhase onStart={handleStartExperiment} />
-        )}
-        {phase === 'watching' && participantId && currentVideo && (
-          <WatchingPhase 
-            participantId={participantId}
-            videoFileName={currentVideo}
-            onComplete={() => setPhase('rating')}
-          />
-        )}
-        {phase === 'rating' && participantId && currentVideo && (
-          <RatingPhase 
-            participantId={participantId}
-            videoFileName={currentVideo}
-            onComplete={handleSubmitRatings}
-          />
-        )}
-        {phase === 'healing' && (
-          <HealingPhase onComplete={() => setPhase('end')} />
-        )}
-        {phase === 'end' && (
-          <EndPhase onRestart={() => {
-            setPhase('intro');
-            setParticipantId(null);
-            setCurrentVideo(null);
-          }} />
-        )}
-
-        {/* 调试面板 */}
-        {/* {import.meta.env.DEV && (
-          <div className="fixed bottom-4 left-4 bg-black/80 text-white p-4 rounded-lg text-sm">
-            <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+    <div className="min-h-screen w-full">
+      {phase === 'intro' && (
+        <IntroPhase onStart={handleStartExperiment} />
+      )}
+      {phase === 'select-directory' && (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+          <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
+            <h2 className="text-xl font-semibold mb-4">选择视频文件夹</h2>
+            <p className="text-gray-700 mb-6">
+              请选择包含实验视频的文件夹
+            </p>
+            <Button onClick={handleSelectDirectory} className="w-full">
+              选择文件夹
+            </Button>
           </div>
-        )} */}
-      </div>
+        </div>
+      )}
+      {phase === 'watching' && participantId && currentVideo && (
+        <WatchingPhase 
+          participantId={participantId}
+          videoFileName={currentVideo}
+          onComplete={() => setPhase('rating')}
+        />
+      )}
+      {phase === 'rating' && participantId && currentVideo && (
+        <RatingPhase 
+          participantId={participantId}
+          videoFileName={currentVideo}
+          onComplete={handleSubmitRatings}
+        />
+      )}
+      {phase === 'healing' && (
+        <HealingPhase onComplete={() => setPhase('end')} />
+      )}
+      {phase === 'end' && (
+        <EndPhase onRestart={() => {
+          setPhase('intro');
+          setParticipantId(null);
+          setCurrentVideo(null);
+        }} />
+      )}
+
+      {/* 调试面板 */}
+      {/* {import.meta.env.DEV && (
+        <div className="fixed bottom-4 left-4 bg-black/80 text-white p-4 rounded-lg text-sm">
+          <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+        </div>
+      )} */}
 
       <Dialog open={showNameDialog} onOpenChange={setShowNameDialog}>
         <DialogContent>
@@ -242,6 +269,20 @@ export function ExperimentFlow() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// 包装主组件
+export function ExperimentFlow() {
+  return (
+    <ErrorBoundary
+      FallbackComponent={ErrorFallback}
+      onReset={() => window.location.reload()}
+    >
+      <FileSystemProvider>
+        <ExperimentFlowContent />
+      </FileSystemProvider>
     </ErrorBoundary>
   );
 }

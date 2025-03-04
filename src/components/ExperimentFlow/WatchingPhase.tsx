@@ -1,7 +1,8 @@
-// src/components/ExperimentFlow/WatchingPhase.tsx
-import { useEffect, useState } from 'react';
-import { VideoPlayer } from "../ui/VideoPlayer";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from 'react';
+import { VideoPlayer } from '@/components/ui/VideoPlayer';
+import { useFileSystem } from './FileSystemContext';
+import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 
 interface WatchingPhaseProps {
   participantId: number;
@@ -10,87 +11,92 @@ interface WatchingPhaseProps {
 }
 
 export function WatchingPhase({ participantId, videoFileName, onComplete }: WatchingPhaseProps) {
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-  const videoUrl = `${API_URL}/videos/${videoFileName}`;
-  // const videoUrl=`../../../videos/${videoFileName}`
+  
+  const { getVideoUrl, selectDirectory, directoryHandle } = useFileSystem();
 
   useEffect(() => {
-    // 检查视频是否可访问
-    const checkVideo = async () => {
+    async function loadVideo() {
       try {
-        const response = await fetch(videoUrl);
-        if (!response.ok) {
-          throw new Error('视频加载失败');
+        setIsLoading(true);
+        setError(null);
+        
+        // 如果还没有选择目录，先提示用户选择
+        if (!directoryHandle) {
+          // 选择目录的逻辑放在其他地方处理
+          return;
         }
-        setIsLoading(false);
+        
+        // 获取视频URL
+        const url = await getVideoUrl(videoFileName);
+        
+        if (!url) {
+          setError(`无法加载视频文件: ${videoFileName}`);
+          return;
+        }
+        
+        setVideoUrl(url);
       } catch (err) {
-        console.error('Error loading video:', err);
-        setError('视频加载失败，请刷新页面重试');
+        console.error('加载视频出错:', err);
+        setError('加载视频时出错，请刷新页面重试');
+      } finally {
+        setIsLoading(false);
       }
-    };
+    }
+    
+    loadVideo();
+  }, [videoFileName, getVideoUrl, directoryHandle]);
+  
+  const handleRetry = async () => {
+    const success = await selectDirectory();
+    if (success) {
+      setError(null);
+      setIsLoading(true);
+      
+      // 重新获取视频URL
+      const url = await getVideoUrl(videoFileName);
+      if (url) {
+        setVideoUrl(url);
+        setError(null);
+      } else {
+        setError(`无法找到视频文件: ${videoFileName}`);
+      }
+      
+      setIsLoading(false);
+    }
+  };
 
-    checkVideo();
-  }, [videoUrl]);
-
-  if (error) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-center text-white">
-          <p className="mb-4">{error}</p>
-          <Button 
-            variant="outline" 
-            onClick={() => window.location.reload()}
-          >
-            重试
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+        <p className="mt-4 text-lg text-gray-700">正在加载视频，请稍候...</p>
+      </div>
+    );
+  }
+  
+  if (error || !videoUrl) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+        <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
+          <h2 className="text-xl font-semibold text-red-600 mb-4">视频加载失败</h2>
+          <p className="text-gray-700 mb-6">{error || '无法加载视频文件，请选择包含实验视频的文件夹'}</p>
+          <Button onClick={handleRetry} className="w-full">
+            选择视频文件夹
           </Button>
         </div>
       </div>
     );
   }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-black">
-        <div className="text-center text-white">
-          <p>加载中...</p>
-        </div>
-      </div>
-    );
-  }
-
+  
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="w-full max-w-5xl px-6">
-        <VideoPlayer
-          videoUrl={videoUrl}
-          onComplete={onComplete}
-          isHealing={false}
-        />
-
-        {/* 开发环境调试信息 */}
-        {/* {import.meta.env.DEV && (
-          <div className="mt-4 bg-white/10 p-4 rounded text-white text-sm">
-            <div>参与者ID: {participantId}</div>
-            <div>当前视频: {videoFileName}</div>
-          </div>
-        )} */}
-
-        {/* 开发环境跳过按钮 */}
-        {/* {import.meta.env.DEV && (
-          <div className="mt-4 flex justify-end">
-            <Button
-              variant="ghost"
-              className="text-white hover:bg-white/10"
-              onClick={onComplete}
-            >
-              跳过视频
-            </Button>
-          </div>
-        )} */}
-      </div>
+    <div className="min-h-screen w-full">
+      <VideoPlayer 
+        videoUrl={videoUrl} 
+        onComplete={onComplete} 
+      />
     </div>
   );
 }

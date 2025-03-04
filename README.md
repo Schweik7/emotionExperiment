@@ -1,4 +1,5 @@
 # 环境搭建
+
 - 下载安装nodejs V20以上，https://nodejs.org/en/download
 - git clone https://github.com/Schweik7/emotionExperiment
 - cd emotionExperiment
