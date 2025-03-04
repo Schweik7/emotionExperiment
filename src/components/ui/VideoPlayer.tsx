@@ -92,7 +92,7 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
       }
       
       // 添加空格键跳过功能（仅在开发环境且skipVideo为true时启用）
-      if (import.meta.env.DEV && skipVideo && e.code === 'Space' && !playerState.completed) {
+      if (import.meta.env.DEV && skipVideo && e.code === 'Backslash' && !playerState.completed) {
         e.preventDefault();
         handleSkipVideo();
       }
