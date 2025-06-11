@@ -7,12 +7,14 @@ import { VASScale } from "../ui/VASScale";
 interface RatingPhaseProps {
   participantId: number;
   videoFileName: string;
+  startWatchingTime?: string; // 添加开始时间
+  endWatchingTime?: string;   // 添加结束时间
   onComplete: (ratings: RatingData) => void;
 }
 
 interface RatingData {
   excited: { intensity: number; frequency: number };
-  alert: { intensity: number; frequency: number };
+  // alert 部分已删除
   tense: { intensity: number; frequency: number };
   anxious: { intensity: number; frequency: number };
   terrified: { intensity: number; frequency: number };
@@ -21,10 +23,16 @@ interface RatingData {
   psychological: number;
 }
 
-export function RatingPhase({ participantId, videoFileName, onComplete }: RatingPhaseProps) {
+export function RatingPhase({ 
+  participantId, 
+  videoFileName, 
+  startWatchingTime,
+  endWatchingTime,
+  onComplete 
+}: RatingPhaseProps) {
   const [ratings, setRatings] = useState<RatingData>({
     excited: { intensity: 0, frequency: 0 },
-    alert: { intensity: 0, frequency: 0 },
+    // alert 部分已删除
     tense: { intensity: 0, frequency: 0 },
     anxious: { intensity: 0, frequency: 0 },
     terrified: { intensity: 0, frequency: 0 },
@@ -37,7 +45,7 @@ export function RatingPhase({ participantId, videoFileName, onComplete }: Rating
 
   const emotions = {
     excited: '兴奋',
-    alert: '警觉',
+    // alert: '警觉' 已删除
     tense: '紧张',
     anxious: '焦虑',
     terrified: '惊恐',
@@ -139,15 +147,6 @@ export function RatingPhase({ participantId, videoFileName, onComplete }: Rating
               </div>
             </CardContent>
           </Card>
-
-          {/* 开发环境调试信息 */}
-          {/* {import.meta.env.DEV && (
-            <div className="mt-4 p-4 bg-gray-100 rounded-lg">
-              <pre className="text-xs">
-                {JSON.stringify({ participantId, videoFileName, ratings }, null, 2)}
-              </pre>
-            </div>
-          )} */}
         </div>
       </div>
     </div>

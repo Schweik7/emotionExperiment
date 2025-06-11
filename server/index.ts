@@ -31,7 +31,7 @@ await fastify.register(cors, {
 // 添加健康检查端点
 fastify.get('/health', async () => {
   const memoryUsage = process.memoryUsage();
-  
+
   return {
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -51,14 +51,14 @@ fastify.get('/health', async () => {
 function checkMemoryUsage() {
   const now = Date.now();
   if (now - lastMemoryCheck < MEMORY_CHECK_INTERVAL) return;
-  
+
   lastMemoryCheck = now;
   const memoryUsage = process.memoryUsage();
   const heapUsedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
   const rssMemoryMB = Math.round(memoryUsage.rss / 1024 / 1024);
-  
+
   console.log(`[Memory] Heap: ${heapUsedMB}MB, RSS: ${rssMemoryMB}MB, Active Streams: ${activeStreams}`);
-  
+
   // 如果内存使用过高，尝试释放
   if (heapUsedMB > 500 || rssMemoryMB > 800) {
     console.warn(`[Memory Alert] High memory usage detected.`);
@@ -73,29 +73,29 @@ function checkMemoryUsage() {
 fastify.get('/videos/:filename', async (request, reply) => {
   // 检查内存使用
   checkMemoryUsage();
-  
+
   const { filename } = request.params as { filename: string };
   const videoPath = path.join(VIDEOS_DIR, filename);
-  
+
   try {
     // 检查是否超过最大并发流数量
     if (activeStreams >= MAX_CONCURRENT_STREAMS) {
-      return reply.code(503).send({ 
+      return reply.code(503).send({
         error: 'Server is busy. Please try again later.',
         retryAfter: 5 // 建议客户端5秒后重试
       });
     }
-    
+
     // 增加活跃流计数
     activeStreams++;
-    
+
     // 检查文件是否存在
     await fs.access(videoPath);
   } catch (error) {
     if (activeStreams > 0) activeStreams--;
     return reply.code(404).send({ error: '视频文件不存在' });
   }
-  
+
   try {
     // 获取文件状态
     const stat = statSync(videoPath);
@@ -107,7 +107,7 @@ fastify.get('/videos/:filename', async (request, reply) => {
     if (filename.endsWith('.webm')) {
       contentType = 'video/webm';
     }
-    
+
     // 如果没有Range请求头或是小文件，返回整个文件
     if (!range) {
       reply.header('Content-Length', fileSize);
@@ -115,13 +115,13 @@ fastify.get('/videos/:filename', async (request, reply) => {
       reply.header('Accept-Ranges', 'bytes');
       reply.header('Cache-Control', 'public, max-age=86400'); // 24小时缓存
       reply.code(200);
-      
+
       // 创建可读流
       const stream = createReadStream(videoPath, {
         highWaterMark: 64 * 1024, // 64KB缓冲区
         autoClose: true // 确保流结束后自动关闭
       });
-      
+
       // 处理流错误，防止服务器崩溃
       stream.on('error', (err) => {
         console.error(`Stream error for ${filename}:`, err);
@@ -130,36 +130,36 @@ fastify.get('/videos/:filename', async (request, reply) => {
         }
         if (activeStreams > 0) activeStreams--;
       });
-      
+
       // 处理流关闭，确保计数器正确
       stream.on('close', () => {
         if (activeStreams > 0) activeStreams--;
       });
-      
+
       return reply.send(stream);
     }
-    
+
     // 处理Range请求
     const parts = range.replace(/bytes=/, '').split('-');
     const start = parseInt(parts[0], 10);
     let end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-    
+
     // 限制块大小，防止内存过载
     const CHUNK_SIZE = 1024 * 1024; // 1MB
     if (end - start >= CHUNK_SIZE) {
       end = start + CHUNK_SIZE - 1;
     }
-    
+
     // 确保范围有效
     if (start < 0 || start >= fileSize || end >= fileSize) {
       reply.code(416).send({ error: 'Range Not Satisfiable' });
       if (activeStreams > 0) activeStreams--;
       return;
     }
-    
+
     // 计算内容长度
     const contentLength = end - start + 1;
-    
+
     // 设置响应头
     reply.header('Content-Range', `bytes ${start}-${end}/${fileSize}`);
     reply.header('Accept-Ranges', 'bytes');
@@ -167,15 +167,15 @@ fastify.get('/videos/:filename', async (request, reply) => {
     reply.header('Content-Type', contentType);
     reply.header('Cache-Control', 'public, max-age=86400'); // 24小时缓存
     reply.code(206); // Partial Content
-    
+
     // 创建限制范围的流
-    const stream = createReadStream(videoPath, { 
-      start, 
+    const stream = createReadStream(videoPath, {
+      start,
       end,
       highWaterMark: 64 * 1024, // 64KB缓冲区
       autoClose: true // 确保流结束后自动关闭
     });
-    
+
     // 处理流错误，防止服务器崩溃
     stream.on('error', (err) => {
       console.error(`Stream error for ${filename}:`, err);
@@ -184,12 +184,12 @@ fastify.get('/videos/:filename', async (request, reply) => {
       }
       if (activeStreams > 0) activeStreams--;
     });
-    
+
     // 处理流关闭，确保计数器正确
     stream.on('close', () => {
       if (activeStreams > 0) activeStreams--;
     });
-    
+
     return reply.send(stream);
   } catch (error) {
     console.error(`Error serving video ${filename}:`, error);
@@ -214,12 +214,12 @@ async function getVideoFiles(): Promise<string[]> {
   try {
     const videosDir = path.join(__dirname, 'videos');
     const files = await fs.readdir(videosDir);
-    const videoFiles=files.filter(file =>
-      (['.mp4', '.webm'].includes(path.extname(file).toLowerCase()) && // 文件扩展名是 .mp4 或 .webm
-        path.basename(file) !== '放松视频.mp4' && path.basename(file) !== '放松视频') // 文件名不为 "放松视频.mp4"
-      );
+    const videoFiles = files.filter(file =>
+    (['.mp4', '.webm'].includes(path.extname(file).toLowerCase()) && // 文件扩展名是 .mp4 或 .webm
+      path.basename(file) !== '放松视频.mp4' && path.basename(file) !== '放松视频') // 文件名不为 "放松视频.mp4"
+    );
     console.log(videoFiles);
-    return videoFiles; 
+    return videoFiles;
   } catch (error) {
     console.error('Error reading video directory:', error);
     return [];
@@ -321,10 +321,11 @@ fastify.get<{ Params: { id: string } }>('/api/participants/:id/next-video', asyn
 interface VideoResponseData {
   participantId: number;
   videoFileName: string;
+  startWatchingTime?: string; // ISO 日期字符串
+  endWatchingTime?: string;   // ISO 日期字符串
   excitedIntensity: number;
   excitedFrequency: number;
-  alertIntensity: number;
-  alertFrequency: number;
+  // alertIntensity 和 alertFrequency 已删除
   tenseIntensity: number;
   tenseFrequency: number;
   anxiousIntensity: number;
@@ -336,7 +337,6 @@ interface VideoResponseData {
   physicalDiscomfort: number;
   psychologicalDiscomfort: number;
 }
-
 // 修改路由处理
 fastify.post<{ Body: VideoResponseData }>(
   '/api/responses',
@@ -345,10 +345,11 @@ fastify.post<{ Body: VideoResponseData }>(
       const {
         participantId,
         videoFileName,
+        startWatchingTime,
+        endWatchingTime,
         excitedIntensity,
         excitedFrequency,
-        alertIntensity,
-        alertFrequency,
+        // alertIntensity 和 alertFrequency 已删除
         tenseIntensity,
         tenseFrequency,
         anxiousIntensity,
@@ -360,15 +361,19 @@ fastify.post<{ Body: VideoResponseData }>(
         physicalDiscomfort,
         psychologicalDiscomfort
       } = request.body;
+      // 处理开始和结束时间
+      const startTime = startWatchingTime ? new Date(startWatchingTime) : undefined;
+      const endTime = endWatchingTime ? new Date(endWatchingTime) : undefined;
 
       const response = await prisma.videoResponse.create({
         data: {
           participantId,
           videoFileName,
+          startWatchingTime: startTime,
+          endWatchingTime: endTime,
           excitedIntensity,
           excitedFrequency,
-          alertIntensity,
-          alertFrequency,
+          // alertIntensity 和 alertFrequency 已删除
           tenseIntensity,
           tenseFrequency,
           anxiousIntensity,
@@ -401,24 +406,24 @@ fastify.post<{ Body: VideoResponseData }>(
 // 设置优雅关闭
 function gracefulShutdown() {
   console.log('Shutting down gracefully...');
-  
+
   // 设置超时确保最终会关闭
   const forceExit = setTimeout(() => {
     console.error('Could not close connections in time, forcefully shutting down');
     process.exit(1);
   }, 10000);
-  
+
   // 先关闭服务器停止接收新请求
   fastify.close(async () => {
     console.log('Fastify server closed');
-    
+
     // 断开Prisma连接
     await prisma.$disconnect();
     console.log('Database connections closed');
-    
+
     // 清除强制退出计时器
     clearTimeout(forceExit);
-    
+
     process.exit(0);
   });
 }
@@ -430,7 +435,7 @@ process.on('SIGINT', gracefulShutdown);
 // 定期进行内存清理和检查
 setInterval(() => {
   checkMemoryUsage();
-  
+
   // 如果有gc函数（需要使用--expose-gc参数启动Node），则尝试定期手动触发垃圾回收
   if (global.gc) {
     global.gc();
@@ -443,7 +448,7 @@ const start = async () => {
     await fastify.listen({ port: 5000, host: '0.0.0.0' });
     console.log(`服务器运行在 http://localhost:5000`);
     console.log(`内存管理已启用，当前内存使用: ${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`);
-    
+
     if (!global.gc) {
       console.log('提示: 使用 "node --expose-gc server.js" 启动服务器以启用手动垃圾回收');
     }

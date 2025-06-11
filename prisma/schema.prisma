@@ -25,11 +25,14 @@ model VideoResponse {
   participant   Participant @relation(fields: [participantId], references: [id])
   videoFileName String    // 对应的视频文件名
   
+  // 视频观看时间记录
+  startWatchingTime DateTime?
+  endWatchingTime   DateTime?
+  
   // 情绪评分
   excitedIntensity    Float
   excitedFrequency    Float
-  alertIntensity      Float
-  alertFrequency      Float
+  // alertIntensity 和 alertFrequency 已删除
   tenseIntensity      Float
   tenseFrequency      Float
   anxiousIntensity    Float

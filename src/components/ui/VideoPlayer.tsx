@@ -7,18 +7,27 @@ import { Play, Pause, ArrowRight } from 'lucide-react';
 const skipVideo = true;
 
 interface VideoPlayerProps {
-  videoUrl: string;
+  videoUrl?: string;
   onComplete: () => void;
   isHealing?: boolean;
+  onStartWatching?: () => void;
+  onEndWatching?: () => void;
 }
 
-export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPlayerProps) {
+export function VideoPlayer({ 
+  videoUrl, 
+  onComplete, 
+  isHealing = false,
+  onStartWatching,
+  onEndWatching
+}: VideoPlayerProps) {
   // 简化状态管理，只使用少量必要状态
   const [playerState, setPlayerState] = useState({
     playing: false,      // 是否正在播放
     completed: false,    // 是否已完成播放
     loading: true,       // 是否正在加载
-    error: null as string | null // 错误信息
+    error: null as string | null, // 错误信息
+    started: false       // 是否已开始播放（用于记录开始时间）
   });
   
   const playerRef = useRef<ReactPlayer>(null);
@@ -31,7 +40,8 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
       playing: false,
       completed: false,
       loading: true,
-      error: null
+      error: null,
+      started: false
     });
     
     if (completionTimerRef.current) {
@@ -62,57 +72,21 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
     };
   }, [videoUrl, resetState]);
   
-  // 进入全屏
-  const enterFullScreen = useCallback(() => {
-    if (!document.fullscreenElement && containerRef.current) {
-      try {
-        containerRef.current.requestFullscreen().catch(err => {
-          console.warn('无法进入全屏:', err);
-        });
-      } catch (err) {
-        console.warn('请求全屏发生错误:', err);
-      }
-    }
-  }, []);
-  
-  // 播放时自动进入全屏
-  useEffect(() => {
-    if (playerState.playing && !document.fullscreenElement) {
-      enterFullScreen();
-    }
-  }, [playerState.playing, enterFullScreen]);
-  
-  // 键盘事件处理
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // 阻止ESC键退出全屏
-      if (e.key === 'Escape' || e.key === 'F11' || e.keyCode === 27) {
-        e.preventDefault();
-        return false;
-      }
-      
-      // 添加空格键跳过功能（仅在开发环境且skipVideo为true时启用）
-      if (import.meta.env.DEV && skipVideo && e.code === 'Backslash' && !playerState.completed) {
-        e.preventDefault();
-        handleSkipVideo();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, true);
-    };
-  }, [playerState.completed]);
-  
   // 处理播放控制
   const handlePlayPause = useCallback(() => {
+    // 如果是第一次开始播放，触发开始观看回调
+    if (!playerState.started && !playerState.playing) {
+      setPlayerState(prev => ({ ...prev, started: true }));
+      onStartWatching?.();
+    }
+    
     setPlayerState(prev => ({ 
       ...prev, 
       playing: !prev.playing,
       // 确保不会在点击播放/暂停时显示加载中
       loading: false 
     }));
-  }, []);
+  }, [onStartWatching, playerState.playing, playerState.started]);
   
   // 处理视频就绪
   const handleReady = () => {
@@ -122,7 +96,13 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
   
   // 处理视频播放开始
   const handlePlay = () => {
-    setPlayerState(prev => ({ ...prev, loading: false }));
+    // 如果是第一次开始播放，触发开始观看回调
+    if (!playerState.started) {
+      setPlayerState(prev => ({ ...prev, started: true, loading: false }));
+      onStartWatching?.();
+    } else {
+      setPlayerState(prev => ({ ...prev, loading: false }));
+    }
   };
   
   // 处理视频进度
@@ -152,14 +132,8 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
       loading: false
     }));
     
-    // 如果正在全屏，退出全屏
-    if (document.fullscreenElement) {
-      try {
-        document.exitFullscreen();
-      } catch (err) {
-        console.warn('退出全屏失败:', err);
-      }
-    }
+    // 触发结束观看回调
+    onEndWatching?.();
     
     // 10秒后执行完成回调
     if (!completionTimerRef.current) {
@@ -168,7 +142,7 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
         completionTimerRef.current = null;
       }, 10000) as unknown as number;
     }
-  }, [playerState.completed, onComplete]);
+  }, [playerState.completed, onComplete, onEndWatching]);
   
   // 视频错误处理
   const handleError = (error: any) => {
@@ -183,22 +157,53 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
   
   // 跳过视频（仅开发环境）
   const handleSkipVideo = useCallback(() => {
+    // 如果尚未触发开始观看，触发它
+    if (!playerState.started) {
+      onStartWatching?.();
+    }
+    
+    // 触发结束观看
+    onEndWatching?.();
+    
     setPlayerState({
       playing: false,
       completed: true,
       loading: false,
-      error: null
+      error: null,
+      started: true
     });
     
     setTimeout(() => {
       onComplete();
     }, 100);
-  }, [onComplete]);
+  }, [onComplete, onStartWatching, onEndWatching, playerState.started]);
+
+  // 键盘事件处理
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 阻止ESC键退出全屏
+      if (e.key === 'Escape' || e.key === 'F11' || e.keyCode === 27) {
+        e.preventDefault();
+        return false;
+      }
+      
+      // 添加空格键跳过功能（仅在开发环境且skipVideo为true时启用）
+      if (import.meta.env.DEV && skipVideo && e.code === 'Backslash' && !playerState.completed) {
+        e.preventDefault();
+        handleSkipVideo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [playerState.completed, handleSkipVideo]);
 
   return (
     <div 
       ref={containerRef}
-      className="relative bg-black w-full h-full overflow-hidden"
+      className="relative bg-black w-full overflow-hidden flex justify-center items-center"
       style={{ width: '100%', height: '100vh' }}
     >
       {/* 页面顶部标签 */}
@@ -236,51 +241,53 @@ export function VideoPlayer({ videoUrl, onComplete, isHealing = false }: VideoPl
         </div>
       )}
       
-      {/* ReactPlayer组件 */}
-      <div className="player-wrapper w-full h-full">
-        <ReactPlayer
-          ref={playerRef}
-          className="react-player"
-          url={videoUrl}
-          width="100%"
-          height="100%"
-          playing={playerState.playing}
-          controls={false}
-          playsinline
-          pip={false}
-          stopOnUnmount={true}
-          onReady={handleReady}
-          onPlay={handlePlay}
-          onProgress={handleProgress}
-          onEnded={handleComplete}
-          onError={handleError}
-          progressInterval={500}
-          playbackRate={1.0}
-          volume={1}
-          muted={false}
-          config={{
-            file: {
-              attributes: {
-                controlsList: 'nodownload noplaybackrate nofullscreen',
-                disablePictureInPicture: true,
-                preload: 'auto',
-                onContextMenu: (e: React.MouseEvent) => e.preventDefault()
-              },
-              forceVideo: true,
-              forceAudio: false,
-              fastSeek: true
-            }
-          }}
-          style={{
-            pointerEvents: 'none',
-            objectFit: 'contain',
-            backgroundColor: 'black'
-          }}
-        />
+      {/* ReactPlayer组件 - 设置为屏幕的2/3大小 */}
+      <div className="player-wrapper relative" style={{ width: '66.7%', height: '66.7vh' }}>
+        {videoUrl && (
+          <ReactPlayer
+            ref={playerRef}
+            className="react-player"
+            url={videoUrl}
+            width="100%"
+            height="100%"
+            playing={playerState.playing}
+            controls={false}
+            playsinline
+            pip={false}
+            stopOnUnmount={true}
+            onReady={handleReady}
+            onPlay={handlePlay}
+            onProgress={handleProgress}
+            onEnded={handleComplete}
+            onError={handleError}
+            progressInterval={500}
+            playbackRate={1.0}
+            volume={1}
+            muted={false}
+            config={{
+              file: {
+                attributes: {
+                  controlsList: 'nodownload noplaybackrate nofullscreen',
+                  disablePictureInPicture: true,
+                  preload: 'auto',
+                  onContextMenu: (e: React.MouseEvent) => e.preventDefault()
+                },
+                forceVideo: true,
+                forceAudio: false,
+                fastSeek: true
+              }
+            }}
+            style={{
+              pointerEvents: 'none',
+              objectFit: 'contain',
+              backgroundColor: 'black'
+            }}
+          />
+        )}
       </div>
       
       {/* 播放/暂停控制 - 不在加载时和完成后显示 */}
-      {!playerState.loading && !playerState.completed && !playerState.error && (
+      {!playerState.loading && !playerState.completed && !playerState.error && videoUrl && (
         <>
           {/* 播放按钮 - 仅在暂停时显示 */}
           {!playerState.playing && (

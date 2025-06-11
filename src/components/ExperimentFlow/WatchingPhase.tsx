@@ -7,13 +7,16 @@ import { Loader2 } from 'lucide-react';
 interface WatchingPhaseProps {
   participantId: number;
   videoFileName: string;
-  onComplete: () => void;
+  onComplete: (watchData: { startTime: string, endTime: string }) => void;
 }
 
 export function WatchingPhase({ participantId, videoFileName, onComplete }: WatchingPhaseProps) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // 添加时间记录
+  const [startWatchingTime, setStartWatchingTime] = useState<string | null>(null);
+  const [endWatchingTime, setEndWatchingTime] = useState<string | null>(null);
   
   const { getVideoUrl, selectDirectory, directoryHandle } = useFileSystem();
 
@@ -68,6 +71,37 @@ export function WatchingPhase({ participantId, videoFileName, onComplete }: Watc
     }
   };
 
+  // 记录开始观看时间
+  const handleStartWatching = () => {
+    const now = new Date().toISOString();
+    setStartWatchingTime(now);
+    console.log('开始观看时间:', now);
+  };
+
+  // 记录结束观看时间
+  const handleEndWatching = () => {
+    const now = new Date().toISOString();
+    setEndWatchingTime(now);
+    console.log('结束观看时间:', now);
+  };
+
+  // 完成观看，传递时间数据
+  const handleComplete = () => {
+    if (startWatchingTime && endWatchingTime) {
+      onComplete({
+        startTime: startWatchingTime,
+        endTime: endWatchingTime
+      });
+    } else {
+      // 如果没有记录时间（可能是跳过了视频），使用当前时间
+      const now = new Date().toISOString();
+      onComplete({
+        startTime: startWatchingTime || now,
+        endTime: endWatchingTime || now
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
@@ -95,7 +129,9 @@ export function WatchingPhase({ participantId, videoFileName, onComplete }: Watc
     <div className="min-h-screen w-full">
       <VideoPlayer 
         videoUrl={videoUrl} 
-        onComplete={onComplete} 
+        onComplete={handleComplete}
+        onStartWatching={handleStartWatching}
+        onEndWatching={handleEndWatching}
       />
     </div>
   );

@@ -21,16 +21,20 @@ import { FileSystemProvider, useFileSystem } from './FileSystemContext';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 type Phase = 'intro' | 'watching' | 'rating' | 'healing' | 'end' | 'select-directory';
-
 interface RatingData {
   excited: { intensity: number; frequency: number };
-  alert: { intensity: number; frequency: number };
+  // alert 部分已删除
   tense: { intensity: number; frequency: number };
   anxious: { intensity: number; frequency: number };
   terrified: { intensity: number; frequency: number };
   desperate: { intensity: number; frequency: number };
   physical: number;
   psychological: number;
+}
+
+interface WatchTimeData {
+  startTime: string;
+  endTime: string;
 }
 
 function ErrorFallback({ resetErrorBoundary }) {
@@ -53,6 +57,9 @@ function ExperimentFlowContent() {
   const [nameError, setNameError] = useState('');
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
   const { selectDirectory, directoryHandle, isReady } = useFileSystem();
+  
+  // 添加视频观看时间记录
+  const [watchTimeData, setWatchTimeData] = useState<WatchTimeData | null>(null);
 
   // 开发环境调试面板
   const [debugInfo, setDebugInfo] = useState({});
@@ -62,10 +69,11 @@ function ExperimentFlowContent() {
         phase,
         participantId,
         currentVideo,
-        hasDirectoryAccess: !!directoryHandle
+        hasDirectoryAccess: !!directoryHandle,
+        watchTimeData
       });
     }
-  }, [phase, participantId, currentVideo, directoryHandle]);
+  }, [phase, participantId, currentVideo, directoryHandle, watchTimeData]);
 
   // 检查是否已经选择了目录
   useEffect(() => {
@@ -139,8 +147,14 @@ function ExperimentFlowContent() {
     }
   };
 
+  // 视频观看完成回调，接收开始和结束时间
+  const handleWatchingComplete = (timeData: WatchTimeData) => {
+    setWatchTimeData(timeData);
+    setPhase('rating');
+  };
+
   const handleSubmitRatings = async (ratings: RatingData) => {
-    if (!participantId || !currentVideo) return;
+    if (!participantId || !currentVideo || !watchTimeData) return;
 
     try {
       const response = await fetch(`${API_URL}/api/responses`, {
@@ -149,10 +163,11 @@ function ExperimentFlowContent() {
         body: JSON.stringify({
           participantId,
           videoFileName: currentVideo,
+          startWatchingTime: watchTimeData.startTime,
+          endWatchingTime: watchTimeData.endTime,
           excitedIntensity: ratings.excited.intensity,
           excitedFrequency: ratings.excited.frequency,
-          alertIntensity: ratings.alert.intensity,
-          alertFrequency: ratings.alert.frequency,
+          // alertIntensity 和 alertFrequency 已删除
           tenseIntensity: ratings.tense.intensity,
           tenseFrequency: ratings.tense.frequency,
           anxiousIntensity: ratings.anxious.intensity,
@@ -176,6 +191,8 @@ function ExperimentFlowContent() {
         setPhase('healing');
       } else {
         setCurrentVideo(nextVideoData.videoFileName);
+        // 重置观看时间数据
+        setWatchTimeData(null);
         setPhase('watching');
       }
     } catch (error) {
@@ -206,13 +223,15 @@ function ExperimentFlowContent() {
         <WatchingPhase 
           participantId={participantId}
           videoFileName={currentVideo}
-          onComplete={() => setPhase('rating')}
+          onComplete={handleWatchingComplete}
         />
       )}
-      {phase === 'rating' && participantId && currentVideo && (
+      {phase === 'rating' && participantId && currentVideo && watchTimeData && (
         <RatingPhase 
           participantId={participantId}
           videoFileName={currentVideo}
+          startWatchingTime={watchTimeData.startTime}
+          endWatchingTime={watchTimeData.endTime}
           onComplete={handleSubmitRatings}
         />
       )}
@@ -224,15 +243,16 @@ function ExperimentFlowContent() {
           setPhase('intro');
           setParticipantId(null);
           setCurrentVideo(null);
+          setWatchTimeData(null);
         }} />
       )}
 
       {/* 调试面板 */}
-      {/* {import.meta.env.DEV && (
+      {import.meta.env.DEV && (
         <div className="fixed bottom-4 left-4 bg-black/80 text-white p-4 rounded-lg text-sm">
           <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
         </div>
-      )} */}
+      )}
 
       <Dialog open={showNameDialog} onOpenChange={setShowNameDialog}>
         <DialogContent>

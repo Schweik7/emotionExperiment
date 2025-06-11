@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev:frontend": "vite",
+    "dev:frontend": "cross-env NODE_ENV=production vite",
     "dev:backend": "node --loader ts-node/esm server/index.ts",
     "dev": "concurrently \"pnpm dev:frontend\" \"pnpm dev:backend\"",
     "build": "prisma generate && tsc && vite build",
@@ -46,6 +46,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "cors": "^2.8.5",
+    "cross-env": "^7.0.3",
     "eslint": "^9.19.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.18",

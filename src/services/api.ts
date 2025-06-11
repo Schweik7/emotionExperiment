@@ -6,10 +6,13 @@ const api = axios.create({
 });
 
 export interface ParticipantResponse {
+  // 开始和结束时间
+  startWatchingTime?: string;
+  endWatchingTime?: string;
+  // 情绪评分
   excitedIntensity: number;
   excitedFrequency: number;
-  alertIntensity: number;
-  alertFrequency: number;
+  // alertIntensity 和 alertFrequency 已删除
   tenseIntensity: number;
   tenseFrequency: number;
   anxiousIntensity: number;
